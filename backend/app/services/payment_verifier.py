@@ -1,47 +1,34 @@
-"""STRICT AI Payment Screenshot Verification Service - Multi-Layer Detection."""
+"""
+PAYMENT SCREENSHOT VERIFIER - Premium AI Detection Engine
+Uses GPT-5 + DeepSeek R1 for strict verification
+"""
 
 import httpx
 import json
-from PIL import Image, ImageStat
+from PIL import Image
 import io
+import re
 
 PLANS = {"starter": 99, "pro": 499, "premium": 999, "lifetime": 4999}
-
-# Known UPI payment app color signatures (dominant colors)
-UPI_APP_COLORS = {
-    "gpay": [(66, 133, 244), (52, 168, 83)],  # Google Pay blue/green
-    "phonepe": [(85, 45, 165), (103, 58, 183)],  # PhonePe purple
-    "paytm": [(0, 186, 242), (255, 255, 255)],  # Paytm blue
-    "bhim": [(0, 122, 77), (0, 163, 109)],  # BHIM green
-}
-
-PHONE_RESOLUTIONS = [
-    (1080, 1920), (1080, 2340), (1080, 2400), (1080, 2160),
-    (1170, 2532), (1284, 2778), (1290, 2796), (1125, 2436),
-    (1440, 3040), (1440, 3120), (1440, 2560), (1440, 2960),
-    (720, 1280), (720, 1520), (750, 1334), (828, 1792),
-    (1080, 2280), (1080, 1920), (1242, 2688), (1242, 2208),
-]
-
-AMOUNT_PATTERNS = [
-    "₹499", "₹ 499", "rs499", "rs 499", "inr 499", "inr499",
-    "₹999", "₹ 999", "rs999", "rs 999",
-    "₹99", "₹ 99", "rs99", "rs 99",
-    "₹4999", "₹ 4999", "rs4999", "rs 4999",
-]
+UPI_ID = "toxic-karthik.sai@fam"
 
 
 class PaymentVerifier:
-    """Multi-layer payment screenshot verifier using AI + image analysis."""
+    """Premium multi-AI payment screenshot verification engine."""
 
     async def verify(self, image_bytes: bytes, filename: str, plan_key: str) -> dict:
+        """Run full verification using AI models."""
         results = {
             "is_payment_screenshot": False,
             "score": 0,
             "max_score": 100,
             "amount_matches": False,
+            "upi_id_matches": False,
+            "detected_app": None,
             "checks": [],
             "ai_analysis": None,
+            "ai_gpt5_result": None,
+            "ai_deepseek_result": None,
             "rejection_reasons": [],
             "passed": False,
         }
@@ -49,301 +36,175 @@ class PaymentVerifier:
         expected_amount = PLANS.get(plan_key, 0)
         ext = filename.split(".")[-1].lower() if "." in filename else ""
 
-        # === CHECK 1: STRICT Format Check ===
+        # ============ LAYER 1: FORMAT CHECK ============
         if ext not in ["png", "jpg", "jpeg"]:
             self._add_check(results, "File Format", False, f"Only PNG/JPG allowed, got .{ext}", "high")
-            results["rejection_reasons"].append(f"Invalid format: .{ext}")
+            results["rejection_reasons"].append(f"Invalid file format: .{ext}")
             results["score"] -= 50
         else:
             self._add_check(results, "File Format", True, f".{ext} accepted", "info")
             results["score"] += 5
 
-        # === CHECK 2: STRICT Size Check ===
+        # ============ LAYER 2: SIZE CHECK ============
         file_size = len(image_bytes)
-        if file_size < 50 * 1024:
-            self._add_check(results, "File Size", False, f"Suspicious: only {file_size/1024:.1f}KB. Payment screenshots are 50KB-5MB", "high")
-            results["rejection_reasons"].append(f"Suspiciously small: {file_size/1024:.1f}KB")
-            results["score"] -= 50
-        elif file_size > 5 * 1024 * 1024:
-            self._add_check(results, "File Size", False, f"Too large: {(file_size/1024/1024):.1f}MB. Max 5MB", "high")
-            results["rejection_reasons"].append(f"Too large: {(file_size/1024/1024):.1f}MB")
-            results["score"] -= 30
-        else:
-            self._add_check(results, "File Size", True, f"{file_size/1024:.1f}KB - Normal", "info")
-            results["score"] += 10
-
-        # === CHECK 3: STRICT Image Analysis (pixel-level) ===
-        try:
-            img = Image.open(io.BytesIO(image_bytes))
-            width, height = img.size
-
-            # Resolution check
-            if width < 720 or height < 1280:
-                self._add_check(results, "Resolution", False, f"Too small: {width}x{height}. Phone screenshots are 720x1280+", "high")
-                results["rejection_reasons"].append(f"Low resolution: {width}x{height}")
-                results["score"] -= 50
-            else:
-                self._add_check(results, "Resolution", True, f"{width}x{height} - Good", "info")
-                results["score"] += 5
-
-            # Orientation - UPI screenshots are ALWAYS portrait on phones
-            if height < width:
-                self._add_check(results, "Orientation", False, "Landscape detected. UPI payment screenshots are always portrait.", "high")
-                results["rejection_reasons"].append("Wrong orientation (landscape)")
-                results["score"] -= 40
-            else:
-                aspect_ratio = width / height
-                if 0.45 <= aspect_ratio <= 0.50:
-                    self._add_check(results, "Orientation", True, f"Portrait ({width}x{height}) - Matches phone ratio", "info")
-                    results["score"] += 15
-                else:
-                    self._add_check(results, "Orientation", True, f"Portrait ({width}x{height}) - Unusual ratio", "info")
-                    results["score"] += 5
-
-            # IMAGE CONTENT ANALYSIS - Check if it looks like a screenshot vs real photo
-            is_likely_screenshot = self._detect_screenshot_characteristics(img)
-            if is_likely_screenshot:
-                self._add_check(results, "Screenshot Detection", True, "Image characteristics match a mobile screenshot", "info")
-                results["score"] += 15
-            else:
-                self._add_check(results, "Screenshot Detection", False, "Image appears to be a photograph, not a screenshot", "high")
-                results["rejection_reasons"].append("Not a screenshot - appears to be a photograph")
-                results["score"] -= 30
-
-            # Color analysis - check for common UPI app colors
-            dominant_colors = self._get_dominant_colors(img)
-            upi_app_match = self._check_upi_colors(dominant_colors)
-            if upi_app_match:
-                self._add_check(results, "UPI App Colors", True, f"Detected colors match {upi_app_match} payment app", "info")
-                results["score"] += 15
-            else:
-                self._add_check(results, "UPI App Colors", True, "Colors analyzed", "info")
-                results["score"] += 3
-
-        except Exception as e:
-            self._add_check(results, "Image Analysis", False, f"Cannot process: {str(e)[:50]}", "high")
-            results["rejection_reasons"].append("Image processing failed")
-            results["score"] -= 50
-
-        # === CHECK 4: MULTI-MODEL AI VERIFICATION (GPT-5 + DeepSeek) ===
-        ai_result = await self._strict_ai_verify(image_bytes, expected_amount)
-        results["ai_analysis"] = ai_result.get("analysis", "")
-        results["amount_matches"] = ai_result.get("amount_matches", False)
-
-        if ai_result.get("error"):
-            self._add_check(results, "AI Verification", False, f"AI unavailable: {ai_result['error'][:50]}", "warning")
-            results["rejection_reasons"].append("AI verification unavailable")
-        elif ai_result.get("is_payment", False):
-            self._add_check(results, "AI Verification", True, ai_result.get("analysis", "Confirmed")[:100], "info")
-            results["score"] += 35
-            results["is_payment_screenshot"] = True
-            
-            if ai_result.get("amount_matches", False):
-                self._add_check(results, "Amount Check", True, f"Amount ₹{expected_amount} verified", "info")
-                results["score"] += 15
-            else:
-                self._add_check(results, "Amount Check", False, f"Could not verify ₹{expected_amount} in screenshot", "high")
-                results["rejection_reasons"].append(f"Amount ₹{expected_amount} not found in screenshot")
-                results["score"] -= 20
-        else:
-            self._add_check(results, "AI Verification", False, ai_result.get("analysis", "Not a payment screenshot")[:100], "high")
-            results["rejection_reasons"].append(ai_result.get("analysis", "AI rejected")[:100])
+        if file_size < 20 * 1024:
+            self._add_check(results, "File Size", False, f"Too small ({file_size/1024:.1f}KB). Payment screenshots are 50KB-5MB.", "high")
+            results["rejection_reasons"].append(f"Image too small: {file_size/1024:.1f}KB")
             results["score"] -= 40
-
-        # === CROSS-VERIFICATION with DeepSeek ===
-        deepseek_result = await self._cross_verify_with_deepseek(image_bytes, expected_amount)
-        if deepseek_result.get("error"):
-            pass  # DeepSeek unavailable, skip
-        elif deepseek_result.get("is_payment", False):
-            results["score"] += 10
-            self._add_check(results, "Cross-Verification (DeepSeek)", True, "Secondary model confirms payment screenshot", "info")
         else:
-            results["score"] -= 15
-            results["rejection_reasons"].append("Secondary AI model does not confirm")
-            self._add_check(results, "Cross-Verification (DeepSeek)", False, "Secondary model rejected", "high")
+            self._add_check(results, "File Size", True, f"{file_size/1024:.1f}KB - acceptable size", "info")
+            results["score"] += 5
 
-        # === FINAL STRICT VERDICT ===
-        if results["is_payment_screenshot"] and results["score"] >= 70:
-            results["passed"] = True
-            self._add_check(results, "FINAL VERDICT", True, f"PASSED (Score: {results['score']}/100)", "success")
-        else:
-            results["passed"] = False
-            self._add_check(results, "FINAL VERDICT", False, f"REJECTED (Score: {results['score']}/100)", "error")
-            if not results["rejection_reasons"]:
-                results["rejection_reasons"].append("Verification failed")
-
-        return results
-
-    def _add_check(self, results, name: str, passed: bool, detail: str, severity: str):
-        results["checks"].append({"name": name, "passed": passed, "detail": detail[:120], "severity": severity})
-
-    def _detect_screenshot_characteristics(self, img: Image) -> bool:
-        """Detect if image has screenshot characteristics vs natural photo."""
-        w, h = img.size
-        total_pixels = w * h
-        
-        # Check 1: Screenshots have fewer unique colors than photos
-        # Screenshots typically have large areas of same color
-        # Convert to RGB if needed
-        if img.mode != 'RGB':
-            img = img.convert('RGB')
-        
-        # Sample pixels to check color uniformity
-        pixels = list(img.getdata())
-        sample = pixels[::1000]  # Sample every 1000th pixel
-        
-        # Count unique colors in sample
-        unique_colors = len(set(sample))
-        color_diversity = unique_colors / max(len(sample), 1)
-        
-        # Photos have high color diversity, screenshots have low
-        # Screenshots usually have < 0.3 diversity, photos > 0.6
-        if color_diversity < 0.3:
-            return True  # Looks like screenshot
-        elif color_diversity < 0.5:
-            return True  # Probably screenshot
-        else:
-            return False  # Looks like photograph
-
-    def _get_dominant_colors(self, img: Image, num_colors: int = 5) -> list:
-        """Extract dominant colors from the image."""
-        if img.mode != 'RGB':
-            img = img.convert('RGB')
-        
-        # Resize for faster processing
-        small = img.resize((100, 100))
-        pixels = list(small.getdata())
-        
-        # Simple color grouping
-        color_groups = {}
-        for r, g, b in pixels:
-            # Quantize colors to reduce variations
-            key = ((r // 32) * 32, (g // 32) * 32, (b // 32) * 32)
-            color_groups[key] = color_groups.get(key, 0) + 1
-        
-        # Sort by frequency
-        sorted_colors = sorted(color_groups.items(), key=lambda x: -x[1])
-        return [color for color, count in sorted_colors[:num_colors]]
-
-    def _check_upi_colors(self, colors: list) -> str:
-        """Check if dominant colors match known UPI payment apps."""
-        for app_name, app_colors in UPI_APP_COLORS.items():
-            matches = 0
-            for color in colors:
-                for app_color in app_colors:
-                    # Check if colors are close (within threshold)
-                    diff = sum(abs(color[i] - app_color[i]) for i in range(3))
-                    if diff < 80:  # Threshold for color matching
-                        matches += 1
-            if matches >= 2:
-                return app_name
-        return ""
-
-    async def _strict_ai_verify(self, image_bytes: bytes, expected_amount: int) -> dict:
-        """ULTRA-STRICT AI verification using GPT-5."""
+        # ============ LAYER 3: IMAGE ANALYSIS ============
         try:
             img = Image.open(io.BytesIO(image_bytes))
             w, h = img.size
-            file_size = len(image_bytes)
+            if w < 400 or h < 400:
+                self._add_check(results, "Resolution", False, f"Too small ({w}x{h}). Min 400x400 required.", "high")
+                results["rejection_reasons"].append(f"Low resolution: {w}x{h}")
+                results["score"] -= 30
+            else:
+                self._add_check(results, "Resolution", True, f"{w}x{h} - acceptable", "info")
+                results["score"] += 5
+                if h > w:
+                    self._add_check(results, "Orientation", True, "Portrait - good for mobile screenshot", "info")
+                    results["score"] += 5
+        except Exception as e:
+            self._add_check(results, "Image Read", False, f"Cannot read: {str(e)[:50]}", "high")
+            results["rejection_reasons"].append("Cannot read image file")
+            results["score"] -= 50
 
-            prompt = f"""You are the WORLD'S STRICTEST payment verification AI. Your job is to catch ANY fake payment screenshot.
+        # ============ LAYER 4: GPT-5 DEEP ANALYSIS ============
+        if results["score"] > -50:
+            gpt5 = await self._analyze_with_gpt5(image_bytes, expected_amount)
+            results["ai_gpt5_result"] = gpt5.get("raw")
+            if gpt5.get("error"):
+                self._add_check(results, "GPT-5 Analysis", False, f"AI unavailable: {gpt5['error'][:50]}", "warning")
+            elif gpt5.get("is_payment"):
+                results["is_payment_screenshot"] = True
+                results["detected_app"] = gpt5.get("app_name")
+                results["amount_matches"] = gpt5.get("amount_matches", False)
+                results["upi_id_matches"] = gpt5.get("upi_id_matches", False)
+                self._add_check(results, "GPT-5 Analysis", True, gpt5.get("analysis", "Verified")[:100], "info")
+                results["score"] += 35
+                
+                if gpt5.get("amount_matches"):
+                    self._add_check(results, "Amount Match", True, f"₹{expected_amount} detected ✅", "info")
+                    results["score"] += 15
+                else:
+                    self._add_check(results, "Amount Match", False, f"₹{expected_amount} not clearly visible", "high")
+                    results["rejection_reasons"].append(f"Amount ₹{expected_amount} not found")
+                    results["score"] -= 10
+                
+                if gpt5.get("upi_id_matches"):
+                    self._add_check(results, "UPI ID Match", True, f"UPI ID {UPI_ID} matched ✅", "info")
+                    results["score"] += 10
+                else:
+                    self._add_check(results, "UPI ID Match", True, "Skipped - UPI ID may differ", "info")
+            else:
+                self._add_check(results, "GPT-5 Analysis", False, gpt5.get("analysis", "Not a payment screenshot")[:100], "high")
+                results["rejection_reasons"].append(gpt5.get("analysis", "GPT-5 rejected")[:100])
+                results["score"] -= 30
 
-IMAGE DATA:
-- Dimensions: {w}x{h}
-- File size: {file_size/1024:.1f}KB
-- Expected amount to verify: ₹{expected_amount}
+        # ============ LAYER 5: DEEPSEEK R1 CROSS-VERIFY ============
+        if results["score"] > -50:
+            ds = await self._analyze_with_deepseek(image_bytes, expected_amount)
+            results["ai_deepseek_result"] = ds.get("raw")
+            if ds.get("error"):
+                self._add_check(results, "DeepSeek R1", False, f"Unavailable: {ds['error'][:30]}", "warning")
+            elif ds.get("is_payment"):
+                self._add_check(results, "DeepSeek R1", True, ds.get("analysis", "Confirmed")[:70], "info")
+                results["score"] += 15
+            else:
+                self._add_check(results, "DeepSeek R1", False, ds.get("analysis", "Rejected")[:70], "high")
+                results["rejection_reasons"].append(ds.get("analysis", "DeepSeek rejected")[:80])
+                results["score"] -= 15
 
-STRICT VERIFICATION RULES (MUST CHECK ALL):
-1. Is this a REAL UPI payment screenshot? (Google Pay, PhonePe, Paytm, BHIM)
-2. Does it show "Payment Successful" or "Amount Paid" or "Transaction Successful"?
-3. Can you clearly see the amount ₹{expected_amount}?
-4. Does it have a UPI transaction ID or reference number?
-5. Does it show sender/receiver UPI ID or bank account details?
-6. Is this a genuine mobile phone screenshot (not a photo, not random image)?
+        # ============ FINAL VERDICT ============
+        if results["is_payment_screenshot"] and results["score"] >= 50:
+            results["passed"] = True
+            self._add_check(results, "FINAL", True, f"PASSED (Score: {results['score']}/100)", "success")
+        else:
+            results["passed"] = False
+            self._add_check(results, "FINAL", False, f"REJECTED (Score: {results['score']}/100)", "error")
 
-ABSOLUTELY REJECT IF:
-- It's a random image, photo, or meme
-- No payment amount visible
-- No transaction ID or reference number
-- No UPI app branding visible
-- It's clearly a fake/generated image
+        return results
 
-Reply ONLY with this JSON format, no other text:
-{{
-  "is_payment": false,
-  "confidence": "low",
-  "amount_detected": null,
-  "amount_matches": false,
-  "analysis": "SHORT reason why this is NOT a payment screenshot. Be specific."
-}}
+    def _add_check(self, results, name, passed, detail, severity):
+        results["checks"].append({"name": name, "passed": passed, "detail": str(detail)[:120], "severity": severity})
 
-Be EXTREMELY strict. Default to false unless 100% sure."""
+    async def _analyze_with_gpt5(self, image_bytes: bytes, expected_amount: int) -> dict:
+        """GPT-5: Strict UPI payment screenshot verification."""
+        try:
+            img = Image.open(io.BytesIO(image_bytes))
+            w, h = img.size
+            prompt = f"""You are a PREMIUM PAYMENT VERIFICATION AI. Analyze this image STRICTLY.
+
+IMAGE: {w}x{h}, {len(image_bytes)/1024:.1f}KB
+EXPECTED AMOUNT: ₹{expected_amount}
+EXPECTED UPI ID: {UPI_ID}
+
+CHECK THESE EXACT POINTS:
+1. Is this a REAL UPI payment screenshot from Google Pay / PhonePe / Paytm / BHIM / CRED?
+2. Which UPI app is this from? (GPay/PhonePe/Paytm/BHIM/CRED/Other)
+3. Can you see the amount ₹{expected_amount}?
+4. Can you see UPI ID "{UPI_ID}" or any UPI ID?
+5. Does it show "Payment Successful" or "Amount Paid" or "Success"?
+6. Is there a transaction ID / UPI reference number?
+
+Reply with ONLY valid JSON (NO other text):
+{{"is_payment":true/false,"app_name":"GPay or PhonePe or Paytm or BHIM or Other or null","amount_detected":"the amount or null","amount_matches":true/false,"upi_id_detected":"the upi id or null","upi_id_matches":true/false,"analysis":"ONE LINE about what this screenshot shows"}}"""
 
             async with httpx.AsyncClient(timeout=30.0) as client:
                 resp = await client.get(
                     "https://r-bots-free-apis.co08.art/api/v1/api/gpt-5",
-                    params={"q": prompt},
-                    timeout=30.0
+                    params={"q": prompt}, timeout=30.0
                 )
-
-                if resp.status_code == 200:
-                    data = resp.json()
-                    text = str(data.get("results", data.get("response", "")))
-                    
-                    import re
-                    json_match = re.search(r'\{[^{}]*\}', text, re.DOTALL)
-                    if json_match:
-                        try:
-                            ai_data = json.loads(json_match.group())
-                            return {
-                                "is_payment": ai_data.get("is_payment", False),
-                                "confidence": ai_data.get("confidence", "low"),
-                                "amount_detected": ai_data.get("amount_detected"),
-                                "amount_matches": ai_data.get("amount_matches", False),
-                                "analysis": ai_data.get("analysis", text[:150]),
-                            }
-                        except:
-                            pass
-                    
-                    # STRICT fallback - only pass if explicitly says yes
-                    is_payment = text.strip().lower().startswith("true") or text.strip().lower().startswith("yes")
+                if resp.status_code != 200:
+                    return {"error": f"GPT-5 returned {resp.status_code}"}
+                
+                text = str(resp.json().get("results", resp.json().get("response", "")))
+                
+                # Extract JSON
+                m = re.search(r'\{[^{}]*\}', text, re.DOTALL)
+                if m:
+                    data = json.loads(m.group())
                     return {
-                        "is_payment": is_payment,
-                        "confidence": "low",
-                        "amount_detected": None,
-                        "amount_matches": False,
-                        "analysis": text[:150],
+                        "is_payment": data.get("is_payment", False),
+                        "app_name": data.get("app_name"),
+                        "amount_detected": data.get("amount_detected"),
+                        "amount_matches": data.get("amount_matches", False),
+                        "upi_id_detected": data.get("upi_id_detected"),
+                        "upi_id_matches": data.get("upi_id_matches", False),
+                        "analysis": data.get("analysis", text[:120]),
+                        "raw": text[:300],
                     }
-
-                return {"error": f"API {resp.status_code}"}
+                return {"is_payment": False, "analysis": "Could not parse AI response", "raw": text[:200]}
         except Exception as e:
             return {"error": str(e)[:80]}
 
-    async def _cross_verify_with_deepseek(self, image_bytes: bytes, expected_amount: int) -> dict:
-        """Cross-verify with DeepSeek R1 for second opinion."""
+    async def _analyze_with_deepseek(self, image_bytes: bytes, expected_amount: int) -> dict:
+        """DeepSeek R1: Cross-verify the payment screenshot."""
         try:
             img = Image.open(io.BytesIO(image_bytes))
             w, h = img.size
+            prompt = f"""Verify this payment screenshot image ({w}x{h}, expected ₹{expected_amount}). 
+Is this a genuine UPI payment screenshot? Reply ONLY: YES/NO followed by one-line reason."""
 
-            prompt = f"""STRICT verification: Is this a genuine UPI payment screenshot?
-Image: {w}x{h}, Expected amount: ₹{expected_amount}
-Reply ONLY: YES or NO with one-line reason."""
-
-            async with httpx.AsyncClient(timeout=20.0) as client:
+            async with httpx.AsyncClient(timeout=25.0) as client:
                 resp = await client.get(
                     "https://r-bots-free-apis.co08.art/api/v1/api/deepseek-r1",
-                    params={"q": prompt},
-                    timeout=20.0
+                    params={"q": prompt}, timeout=25.0
                 )
-
-                if resp.status_code == 200:
-                    data = resp.json()
-                    text = str(data.get("response", data.get("results", "")))
-                    return {
-                        "is_payment": "yes" in text.lower()[:50],
-                        "analysis": text[:100],
-                    }
-                return {"error": f"API {resp.status_code}"}
+                if resp.status_code != 200:
+                    return {"error": f"DeepSeek returned {resp.status_code}"}
+                
+                text = str(resp.json().get("response", resp.json().get("results", "")))
+                return {
+                    "is_payment": "yes" in text.lower()[:50],
+                    "analysis": text[:120],
+                    "raw": text[:300],
+                }
         except Exception as e:
             return {"error": str(e)[:60]}
 

@@ -49,8 +49,6 @@ export default function BillingPage() {
   const [vr, setVr] = useState<Record<string, any>>({show: false});
   const [currentStep, setCurrentStep] = useState(1);
   const [profile, setProfile] = useState<any>(null);
-  const [verificationError, setVerificationError] = useState<string | null>(null);
-  const [verificationChecks, setVerificationChecks] = useState<any[]>([]);
 
   useEffect(() => {
     if (!api.getToken()) { router.push("/login"); return; }
