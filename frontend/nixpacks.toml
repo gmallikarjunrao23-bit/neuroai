@@ -1,0 +1,11 @@
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+
+[phases.install]
+cmd = "npm ci --production=false"
+
+[phases.build]
+cmd = "npm run build"
+
+[start]
+cmd = "npx next start -p $PORT"
