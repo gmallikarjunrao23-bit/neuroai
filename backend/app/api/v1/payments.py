@@ -7,7 +7,6 @@ from sqlalchemy import select
 from app.core.database import get_db
 from app.core.config import settings
 from app.models.user import User, Payment
-from app.schemas.user import PaymentRequest, PaymentResponse, PaymentApprove
 from app.api.v1.auth import get_current_user
 from app.services.ai_service import ai_service
 
@@ -26,11 +25,7 @@ UPI_ID = "toxic-karthik.sai@fam"
 
 @router.get("/plans")
 async def get_plans():
-    """Get available subscription plans."""
-    return {
-        "upi_id": UPI_ID,
-        "plans": PLANS
-    }
+    return {"upi_id": UPI_ID, "plans": PLANS}
 
 
 @router.post("/initiate")
@@ -42,56 +37,29 @@ async def initiate_payment(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Initiate payment with UPI screenshot - verifies it's a genuine payment screenshot."""
     if plan not in PLANS:
         raise HTTPException(status_code=400, detail="Invalid plan")
 
-    # === STEP 1: Read the uploaded file ===
     content = await file.read()
     filename = file.filename or "screenshot.png"
 
-    # === STEP 2: Run AI verification on the screenshot ===
-    verification = await ai_service.verify_payment_screenshot(filename, content)
-
-    # === STEP 3: If verification fails hard, reject immediately ===
-    if not verification["is_valid"]:
-        error_detail = verification["errors"][0] if verification["errors"] else "Invalid payment screenshot"
-        # Still save but mark as failed verification
-        os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-        ext = filename.split(".")[-1] if "." in filename else "png"
-        fname = f"rejected_{user.id}_{uuid.uuid4().hex[:8]}.{ext}"
-        fpath = os.path.join(settings.UPLOAD_DIR, fname)
-        with open(fpath, "wb") as f:
-            f.write(content)
-
-        payment = Payment(
-            user_id=user.id,
-            plan=plan,
-            amount=amount,
-            upi_id=upi_id,
-            screenshot_path=f"/static/uploads/{fname}",
-            status="rejected",
-            admin_notes=f"AUTO-REJECTED: {error_detail}. Checks: {[c['name'] for c in verification['checks'] if not c['passed']]}"
-        )
-        db.add(payment)
-        await db.flush()
-
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "Payment screenshot verification failed",
-                "reason": error_detail,
-                "checks": verification["checks"]
-            }
-        )
-
-    # === STEP 4: Save the verified screenshot ===
+    # Save file
     os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
     ext = filename.split(".")[-1] if "." in filename else "png"
     fname = f"payment_{user.id}_{uuid.uuid4().hex[:8]}.{ext}"
     fpath = os.path.join(settings.UPLOAD_DIR, fname)
     with open(fpath, "wb") as f:
         f.write(content)
+
+    # Run verification (non-blocking, just informational)
+    verification = await ai_service.verify_payment_screenshot(filename, content)
+    ai_check = await ai_service.verify_payment_with_ai(content)
+
+    notes = f"AI Score: {verification['score']}/100"
+    if ai_check.get("analysis"):
+        notes += f" | AI: {ai_check['analysis']}"
+    if not ai_check.get("is_payment", True):
+        notes += " | Flagged: May not be payment screenshot"
 
     payment = Payment(
         user_id=user.id,
@@ -100,7 +68,7 @@ async def initiate_payment(
         upi_id=upi_id,
         screenshot_path=f"/static/uploads/{fname}",
         status="pending",
-        admin_notes=f"Verified by AI (score: {verification['score']}/100)"
+        admin_notes=notes
     )
     db.add(payment)
     await db.flush()
@@ -111,9 +79,7 @@ async def initiate_payment(
         "plan": payment.plan,
         "amount": payment.amount,
         "status": "pending",
-        "verification_score": verification["score"],
-        "verification_checks": verification["checks"],
-        "message": "Payment screenshot verified successfully! Admin will review shortly."
+        "message": "Payment submitted! Admin will review shortly."
     }
 
 
