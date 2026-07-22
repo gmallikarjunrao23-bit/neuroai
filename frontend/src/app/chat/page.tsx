@@ -121,7 +121,13 @@ export default function ChatPage() {
     setSessionId(sid); setSidebar(false);
     try {
       const r = await api.getChatHistory(sid);
-      if (Array.isArray(r)) setMsgs(r.reverse().flatMap((c: any) => [{ role: "user", content: c.prompt }, { role: "assistant", content: c.response, model: c.model }]));
+      if (Array.isArray(r)) {
+        const loaded = r.reverse().flatMap((c: any) => [
+          { role: "user", content: c.prompt },
+          { role: "assistant", content: c.response, model: c.model, image_url: c.image_url, reasoning: c.reasoning }
+        ]);
+        setMsgs(loaded);
+      }
     } catch {}
   };
 
