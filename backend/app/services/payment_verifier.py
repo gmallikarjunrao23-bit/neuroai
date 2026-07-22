@@ -138,22 +138,8 @@ class PaymentVerifier:
         try:
             img = Image.open(io.BytesIO(image_bytes))
             w, h = img.size
-            prompt = f"""You are a PREMIUM PAYMENT VERIFICATION AI. Analyze this image STRICTLY.
-
-IMAGE: {w}x{h}, {len(image_bytes)/1024:.1f}KB
-EXPECTED AMOUNT: ₹{expected_amount}
-EXPECTED UPI ID: {UPI_ID}
-
-CHECK THESE EXACT POINTS:
-1. Is this a REAL UPI payment screenshot from Google Pay / PhonePe / Paytm / BHIM / CRED?
-2. Which UPI app is this from? (GPay/PhonePe/Paytm/BHIM/CRED/Other)
-3. Can you see the amount ₹{expected_amount}?
-4. Can you see UPI ID "{UPI_ID}" or any UPI ID?
-5. Does it show "Payment Successful" or "Amount Paid" or "Success"?
-6. Is there a transaction ID / UPI reference number?
-
-Reply with ONLY valid JSON (NO other text):
-{{"is_payment":true/false,"app_name":"GPay or PhonePe or Paytm or BHIM or Other or null","amount_detected":"the amount or null","amount_matches":true/false,"upi_id_detected":"the upi id or null","upi_id_matches":true/false,"analysis":"ONE LINE about what this screenshot shows"}}"""
+            prompt = f"""STRICT payment verification. Image: {w}x{h}. Amount: Rs.{expected_amount}. UPI: {UPI_ID}.
+Reply ONLY JSON: {{"is_payment":true/false,"app_name":"GPay/PhonePe/Paytm/Other/null","amount_matches":true/false,"upi_id_matches":true/false,"analysis":"one line reason"}}"""
 
             async with httpx.AsyncClient(timeout=30.0) as client:
                 resp = await client.get(
