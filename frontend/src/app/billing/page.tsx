@@ -105,17 +105,27 @@ export default function BillingPage() {
           remaining = detail.attempts_remaining || 0;
           setVerificationChecks(checks);
 
+          // Show AI analysis in RED
           if (detail.ai_analysis) {
-            toast.error("🤖 AI Detection: " + detail.ai_analysis, { duration: 7000 });
+            toast.error("🤖 AI Detection: " + detail.ai_analysis, { duration: 8000 });
           }
 
+          // Show all rejection reasons
           (detail.rejection_reasons || []).forEach((r: string) => {
             toast.error("✗ " + r, { duration: 5000 });
           });
 
+          // Show failed checks
           checks.forEach((c: any) => {
             if (!c.passed) {
               toast.error(`  ✗ ${c.name}: ${c.detail}`, { duration: 4000 });
+            }
+          });
+
+          // Show ALL AI logs (passed and failed)
+          checks.forEach((c: any) => {
+            if (c.passed) {
+              toast.success(`  ✓ ${c.name}: ${c.detail}`, { duration: 3000 });
             }
           });
 

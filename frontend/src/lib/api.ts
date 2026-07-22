@@ -29,7 +29,7 @@ class ApiClient {
       ...(options.headers as Record<string, string> || {}),
     };
     if (this.token) headers["Authorization"] = `Bearer ${this.token}`;
-    
+
     const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
     if (res.status === 401) {
       this.clearToken();
@@ -38,13 +38,13 @@ class ApiClient {
     }
     if (!res.ok) {
       const errData = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
-      throw new Error(errData.detail || `Request failed: ${res.status}`);
+      throw new Error(JSON.stringify(errData));
     }
     return res;
   }
 
   async get(path: string) { return (await this.request(path)).json(); }
-  
+
   async post(path: string, data?: any) {
     return (await this.request(path, { method: "POST", body: data ? JSON.stringify(data) : undefined })).json();
   }
@@ -53,6 +53,12 @@ class ApiClient {
     const headers: Record<string, string> = {};
     if (this.token) headers["Authorization"] = `Bearer ${this.token}`;
     const res = await fetch(`${API_BASE}${path}`, { method: "POST", headers, body: formData });
+
+    // 🔥 FIX: Check res.ok before returning - throw on errors!
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
+      throw new Error(JSON.stringify(errData));
+    }
     return res.json();
   }
 
@@ -75,17 +81,17 @@ class ApiClient {
   }
 
   getModels() { return this.get("/api/v1/models"); }
-  
+
   chat(model: string, message: string, session_id?: string, files?: Array<{name:string;url:string;type:string}>) {
     return this.post("/api/v1/chat", { model, message, session_id, files });
   }
-  
+
   getSessions() { return this.get("/api/v1/sessions"); }
-  
+
   getChatHistory(session_id?: string) {
     return this.get(session_id ? `/api/v1/chat/history?session_id=${session_id}` : "/api/v1/chat/history");
   }
-  
+
   getUsage() { return this.get("/api/v1/usage"); }
   getPaymentPlans() { return this.get("/api/v1/payments/plans"); }
   initiatePayment(formData: FormData) { return this.uploadFormData("/api/v1/payments/initiate", formData); }
