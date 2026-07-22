@@ -67,17 +67,21 @@ export default function BillingPage() {
     }
   };
 
+  const [successData, setSuccessData] = useState<any>(null);
+
   const handleSubmit = async () => {
     if (!file) return;
     setLoading(true);
     setVr({show: false});
+    setSuccessData(null);
     const form = new FormData();
     form.append("plan", selected);
     form.append("amount", String(plan.price));
     form.append("upi_id", "toxic-karthik.sai@fam");
     form.append("file", file);
     try {
-      await api.initiatePayment(form);
+      const data = await api.initiatePayment(form);
+      setSuccessData(data);
       setSuccess(true);
       toast.success("Payment submitted for admin review!");
       api.getMyPayments().then(d => setPayments(Array.isArray(d) ? d : [])).catch(() => {});
@@ -371,6 +375,53 @@ export default function BillingPage() {
               </div>
             </div>
           </div>
+
+          {/* SUCCESS REPORT - Premium */}
+          {success && successData && (
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              className="rounded-2xl border overflow-hidden bg-card"
+            >
+              <div className="p-5 bg-gradient-to-r from-emerald-500/20 to-green-600/10 border-b border-emerald-500/20">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-400 to-green-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                    <CheckCircle2 className="w-7 h-7 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-emerald-400">Payment Submitted Successfully!</h3>
+                    <p className="text-sm text-emerald-300/80">Your payment screenshot has been received and sent for admin review.</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-4 space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 rounded-xl bg-secondary/50 border border-border">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Plan</p>
+                    <p className="text-sm font-bold capitalize mt-0.5">{plan.name}</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-secondary/50 border border-border">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Amount</p>
+                    <p className="text-sm font-bold mt-0.5">Rs.{plan.price}</p>
+                  </div>
+                </div>
+                <div className="p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/20 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                    <Clock className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-emerald-400">Awaiting Admin Approval</p>
+                    <p className="text-[10px] text-emerald-300/60">You will be notified once approved</p>
+                  </div>
+                </div>
+                <Link href="/chat">
+                  <button className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-all inline-flex items-center justify-center gap-2">
+                    Continue to Chat
+                  </button>
+                </Link>
+              </div>
+            </motion.div>
+          )}
 
           {/* Payment History */}
           {payments.length > 0 && (
