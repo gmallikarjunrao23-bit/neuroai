@@ -1,0 +1,2 @@
+# Root placeholder - see backend/requirements.txt
+-r backend/requirements.txt
