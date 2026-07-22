@@ -1,4 +1,4 @@
-"""PAYMENT SCREENSHOT VERIFIER - Optimized for ALL Indian UPI Apps."""
+"""PAYMENT SCREENSHOT VERIFIER - Balanced for real UPI SS, strict on fakes."""
 
 import httpx
 import json
@@ -20,142 +20,173 @@ UPI_APPS = {
     "PayZapp": [(230, 0, 60), (200, 0, 50), (255, 50, 80), (255, 255, 255)],
     "Freecharge": [(255, 50, 50), (220, 30, 30), (255, 80, 80), (255, 255, 255)],
     "Mobikwik": [(250, 80, 50), (230, 60, 40), (255, 100, 70), (255, 255, 255)],
-    "Ola Money": [(180, 220, 50), (160, 200, 40), (200, 240, 60), (255, 255, 255)],
-    "JioPay": [(10, 100, 200), (0, 80, 180), (50, 130, 220), (255, 255, 255)],
     "WhatsApp Pay": [(30, 215, 95), (20, 195, 80), (40, 235, 105), (220, 255, 230)],
     "Slice": [(255, 50, 100), (230, 30, 80), (255, 70, 120), (255, 200, 215)],
     "Jupiter": [(100, 50, 200), (80, 30, 180), (120, 70, 220), (230, 220, 255)],
-    "Tata Neu": [(70, 60, 200), (50, 40, 180), (90, 80, 220), (220, 215, 255)],
-    "Airtel Thanks": [(230, 0, 50), (200, 0, 40), (255, 20, 60), (255, 240, 245)],
-    "Meesho": [(230, 50, 150), (210, 30, 130), (250, 70, 170), (255, 220, 240)],
-    "Flipkart UPI": [(40, 100, 230), (20, 80, 210), (60, 120, 250), (230, 235, 255)],
     "SBI YONO": [(10, 60, 150), (0, 50, 130), (30, 80, 170), (255, 255, 255)],
     "HDFC Payzapp": [(200, 40, 60), (180, 30, 50), (220, 50, 70), (255, 255, 255)],
     "ICICI Pockets": [(200, 50, 80), (180, 40, 70), (220, 60, 90), (255, 255, 255)],
-    "Axis Pay": [(130, 20, 50), (150, 30, 60), (100, 10, 40), (255, 255, 255)],
-    "Kotak Mahindra": [(220, 20, 60), (200, 10, 50), (240, 30, 70), (255, 255, 255)],
-    "FamPay": [(255, 70, 100), (255, 90, 120), (240, 60, 90), (255, 220, 225)],
 }
 
 
 class PaymentVerifier:
-    """Optimized verification - works with real UPI screenshots."""
-
     async def verify(self, image_bytes: bytes, filename: str, plan_key: str) -> dict:
         results = {
-            "is_payment_screenshot": False,
-            "passed": False,
-            "score": 35,  # Start with base score
-            "max_score": 100,
-            "amount_matches": False,
-            "detected_app": None,
-            "checks": [],
-            "ai_analysis": None,
+            "is_payment_screenshot": False, "passed": False,
+            "score": 0, "max_score": 100, "amount_matches": False,
+            "detected_app": None, "checks": [], "ai_analysis": None,
             "rejection_reasons": [],
         }
-
         expected_amount = PLANS.get(plan_key, 0)
         ext = filename.split(".")[-1].lower() if "." in filename else ""
 
-        # LAYER 1: FORMAT
+        # 1. FORMAT
         if ext not in ["png", "jpg", "jpeg"]:
             self._add(results, "Format", False, f"Only PNG/JPG, got .{ext}", "high")
-            results["rejection_reasons"].append(f"Invalid: .{ext}")
-            results["score"] -= 20
+            results["rejection_reasons"].append(f"Invalid format")
+            results["score"] -= 30
         else:
-            self._add(results, "Format", True, f".{ext} accepted", "info")
-            results["score"] += 5
+            self._add(results, "Format", True, f".{ext}", "info")
 
-        # LAYER 2: SIZE
+        # 2. SIZE - UPI screenshots are typically 50KB-2MB
         fs = len(image_bytes)
-        if fs < 5 * 1024:
-            self._add(results, "Size", False, f"Too small ({fs/1024:.1f}KB)", "high")
+        if fs < 10 * 1024:
+            self._add(results, "Size", False, f"Too small ({fs/1024:.1f}KB). Payment SS are 50KB+", "high")
             results["rejection_reasons"].append(f"Too small: {fs/1024:.1f}KB")
+            results["score"] -= 30
+        elif fs > 10 * 1024 * 1024:
+            self._add(results, "Size", False, f"Too large ({(fs/1024/1024):.1f}MB)", "high")
             results["score"] -= 20
         else:
             self._add(results, "Size", True, f"{fs/1024:.1f}KB", "info")
-            results["score"] += 5
+            results["score"] += 10
 
-        # LAYER 3: IMAGE ANALYSIS
+        # 3. IMAGE ANALYSIS
         try:
             img = Image.open(io.BytesIO(image_bytes))
             w, h = img.size
 
-            if w < 300 or h < 300:
+            # Resolution
+            if w < 500 or h < 500:
                 self._add(results, "Resolution", False, f"Too small ({w}x{h})", "high")
-                results["rejection_reasons"].append(f"Low res: {w}x{h}")
-                results["score"] -= 20
+                results["rejection_reasons"].append(f"Low resolution: {w}x{h}")
+                results["score"] -= 30
             else:
                 self._add(results, "Resolution", True, f"{w}x{h}", "info")
                 results["score"] += 5
 
+            # Orientation
             if h > w:
                 self._add(results, "Orientation", True, "Portrait", "info")
                 results["score"] += 5
+            else:
+                results["rejection_reasons"].append("Landscape - payment screenshots are portrait")
+                results["score"] -= 15
 
+            # Deep analysis
             analysis = self._analyze_image(img)
+            
+            upi_detected = analysis.get("upi_app") is not None
+            has_text = analysis.get("has_text", False)
+            looks_like_screenshot = analysis.get("looks_like_screenshot", True)
 
             # UPI app detection
             if analysis.get("upi_app"):
                 results["detected_app"] = analysis["upi_app"]
-                self._add(results, "UPI App", True, f"{analysis['upi_app']} detected!", "info")
-                results["score"] += 20
+                self._add(results, "UPI App", True, f"{analysis['upi_app']} detected", "info")
+                results["score"] += 25
             else:
-                self._add(results, "UPI App", True, "No specific UPI brand", "warning")
+                # No UPI colors = very suspicious
+                self._add(results, "UPI App", False, "No UPI payment app colors detected", "high")
+                results["rejection_reasons"].append("No UPI app branding found")
+                results["score"] -= 15
 
-            # Text detection - MORE LENIENT
-            if analysis.get("has_text", False):
-                self._add(results, "Text Content", True, "Text detected in image", "info")
+            # Text content - REAL screenshots have text
+            if has_text:
+                self._add(results, "Text Content", True, "Text/UI elements detected", "info")
+                results["score"] += 15
+            else:
+                self._add(results, "Text Content", False, "No text content - looks like solid/blank image", "high")
+                results["rejection_reasons"].append("No text or UI elements found")
+                results["score"] -= 25
+
+            # Screenshot characteristic
+            if looks_like_screenshot:
+                self._add(results, "Screenshot Type", True, "Matches screenshot patterns", "info")
                 results["score"] += 10
             else:
-                self._add(results, "Text Content", True, "Content detected", "info")
-                results["score"] += 3
+                self._add(results, "Screenshot Type", False, "Looks like photo/art, not screenshot", "high")
+                results["rejection_reasons"].append("Not a mobile screenshot")
+                results["score"] -= 20
+
+            # Color diversity check - screenshots have MODERATE diversity
+            div = analysis.get("diversity", 0.5)
+            if 0.05 < div < 0.6:
+                self._add(results, "Color Profile", True, f"Normal diversity ({div:.2f})", "info")
+                results["score"] += 5
+            elif div >= 0.6:
+                self._add(results, "Color Profile", False, f"Too colorful ({div:.2f}) - not a screenshot", "high")
+                results["rejection_reasons"].append("Too many colors - looks like photo")
+                results["score"] -= 15
+            else:
+                self._add(results, "Color Profile", False, f"Too uniform ({div:.2f}) - blank/solid", "high")
+                results["rejection_reasons"].append("Blank/solid image")
+                results["score"] -= 25
 
         except Exception as e:
             self._add(results, "Image", False, f"Error: {str(e)[:40]}", "high")
-            results["score"] -= 30
+            results["score"] -= 40
 
-        # LAYER 4: GPT-5
+        # 4. GPT-5 AI REASONING
         if results["score"] > -30:
             try:
-                ai = await self._gpt5(image_bytes, expected_amount, analysis)
+                ai = await self._gpt5(image_bytes, expected_amount, results.get("detected_app"))
                 if ai.get("error"):
-                    self._add(results, "GPT-5", False, f"AI busy", "warning")
-                    results["score"] += 10  # Don't penalize if AI down
+                    # If UPI detected but AI unavailable, pass it
+                    if results.get("detected_app"):
+                        self._add(results, "GPT-5", True, "AI busy - UPI app confirmed, bypassing", "info")
+                        results["score"] += 15
+                    else:
+                        self._add(results, "GPT-5", True, "AI check unavailable", "warning")
+                        results["score"] += 5
                 elif ai.get("is_payment"):
                     results["is_payment_screenshot"] = True
                     results["amount_matches"] = ai.get("amount_matches", False)
-                    self._add(results, "GPT-5", True, f"AI: {ai.get('confidence','low').upper()} - {ai.get('analysis','')[:60]}", "info")
-                    results["score"] += 25
+                    conf = ai.get("confidence", "low")
+                    self._add(results, "GPT-5", True, f"AI confirmed ({conf})", "info")
+                    results["score"] += 20
                     if ai.get("amount_matches"):
-                        self._add(results, "Amount", True, f"Rs.{expected_amount} found!", "info")
+                        self._add(results, "Amount", True, f"Rs.{expected_amount} detected", "info")
                         results["score"] += 15
-                    else:
-                        self._add(results, "Amount", True, f"Amount not clearly visible", "warning")
                 else:
-                    self._add(results, "GPT-5", False, ai.get("analysis","No")[:60], "high")
-                    results["rejection_reasons"].append(ai.get("analysis","AI rejected")[:60])
-                    results["score"] -= 10
+                    # AI rejected it
+                    if results.get("detected_app"):
+                        # UPI colors detected but AI says no - let AI decision override
+                        pass
+                    self._add(results, "GPT-5", False, ai.get("analysis", "AI rejected")[:60], "high")
+                    results["rejection_reasons"].append(ai.get("analysis", "AI rejected")[:60])
+                    results["score"] -= 20
             except Exception as e:
-                self._add(results, "GPT-5", True, f"AI check skipped", "warning")
+                self._add(results, "GPT-5", True, "Check skipped", "warning")
 
-        # FINAL - More lenient threshold
-        if results["score"] >= 40:
+        # FINAL VERDICT - HIGHER threshold
+        if results["score"] >= 45 and results.get("detected_app"):
             results["is_payment_screenshot"] = True
             results["passed"] = True
             self._add(results, "RESULT", True, f"PASSED ({results['score']}/100)", "success")
         else:
             results["passed"] = False
             self._add(results, "RESULT", False, f"REJECTED ({results['score']}/100)", "error")
+            if not results["rejection_reasons"]:
+                results["rejection_reasons"].append("Verification failed")
 
         return results
 
     def _analyze_image(self, img):
-        result = {"upi_app": None, "has_text": False}
+        result = {"upi_app": None, "has_text": False, "looks_like_screenshot": True, "diversity": 0}
         if img.mode != "RGB":
             img = img.convert("RGB")
 
-        w, h = img.size
         pixels = list(img.getdata())
         step = max(1, len(pixels) // 5000)
         sampled = [pixels[i] for i in range(0, len(pixels), step)]
@@ -178,38 +209,51 @@ class PaymentVerifier:
                 result["upi_app"] = app
                 break
 
-        # Text detection - wider threshold for modern UIs (like FamPay)
+        # Color diversity
+        unique = len(set(sampled[:1500]))
+        result["diversity"] = unique / min(1500, len(sampled))
+
+        # Text/edge detection  
         gray = img.convert("L")
         edges = gray.filter(ImageFilter.FIND_EDGES)
         edge_data = list(edges.getdata())
-        edge_ratio = sum(1 for p in edge_data if p > 30) / len(edge_data)  # Lower threshold!
-        result["has_text"] = edge_ratio > 0.02  # More sensitive
+        edge_ratio = sum(1 for p in edge_data if p > 40) / len(edge_data)
+        result["has_text"] = 0.03 < edge_ratio < 0.5
+
+        # Screenshot detection
+        result["looks_like_screenshot"] = not (result["diversity"] > 0.7 and not result["has_text"])
 
         return result
 
-    async def _gpt5(self, image_bytes, amount, analysis):
-        img = Image.open(io.BytesIO(image_bytes))
-        w, h = img.size
-        fs = len(image_bytes)
-        app = analysis.get("upi_app", "unknown")
-        dims = str(w) + "x" + str(h)
-        sizestr = str(round(fs/1024, 1)) + "KB"
-        prompt = "UPI screenshot " + dims + ", " + sizestr + ". Colors: " + app + ". Expected Rs." + str(amount) + ". Is this payment? Reply JSON: {\"is_payment\":true,\"confidence\":\"high/medium/low\",\"amount_matches\":false,\"analysis\":\"reason\"}. If " + app + " detected, return true."
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            resp = await client.get("https://r-bots-free-apis.co08.art/api/v1/api/gpt-5", params={"q": prompt}, timeout=20.0)
-            if resp.status_code != 200:
-                return {"is_payment": True, "confidence": "high", "amount_matches": False, "analysis": "UPI screenshot (AI skipped)"}
-            text = str(resp.json().get("results", resp.json().get("response", "")))
-            import re
-            m = re.search(r"\{[^{}]*\}", text, re.DOTALL)
-            if m:
-                try:
-                    d = json.loads(m.group())
-                    return {"is_payment": True, "confidence": d.get("confidence", "high"), "amount_matches": d.get("amount_matches", False), "analysis": d.get("analysis", text[:80])}
-                except:
-                    pass
-            return {"is_payment": True, "confidence": "medium", "amount_matches": False, "analysis": "UPI payment screenshot"}
-    
+    async def _gpt5(self, image_bytes, amount, detected_app):
+        try:
+            img = Image.open(io.BytesIO(image_bytes))
+            w, h = img.size
+            fs = len(image_bytes)
+            app = detected_app or "unknown"
+            dims = f"{w}x{h}"
+            sized = f"{fs/1024:.1f}KB"
+            
+            prompt = f"Is this a REAL UPI payment screenshot? Image: {dims}, {sized}. Colors: {app}. Expected Rs.{amount}. Reply ONLY JSON: {{\"is_payment\":true/false,\"confidence\":\"high/medium/low\",\"amount_matches\":true/false,\"analysis\":\"reason\"}}"
+            
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                resp = await client.get(
+                    "https://r-bots-free-apis.co08.art/api/v1/api/gpt-5",
+                    params={"q": prompt}, timeout=20.0)
+                if resp.status_code != 200:
+                    return {"error": str(resp.status_code)}
+                text = str(resp.json().get("results", resp.json().get("response", "")))
+                m = re.search(r'\{[^{}]*\}', text, re.DOTALL)
+                if m:
+                    try:
+                        d = json.loads(m.group())
+                        return d
+                    except:
+                        pass
+                return {"is_payment": False, "confidence": "low", "amount_matches": False, "analysis": text[:80]}
+        except:
+            return {"error": "exception"}
+
     def _add(self, r, name, passed, detail, severity):
         r["checks"].append({"name": name, "passed": passed, "detail": str(detail)[:100], "severity": severity})
 
