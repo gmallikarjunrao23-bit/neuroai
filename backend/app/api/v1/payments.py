@@ -60,7 +60,7 @@ async def initiate_payment(
         plan=plan,
         amount=amount,
         upi_id=upi_id,
-        screenshot_path=f"/static/{filename}",
+        screenshot_path=f"/static/uploads/{filename}",
         status="pending"
     )
     db.add(payment)
