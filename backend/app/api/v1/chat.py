@@ -195,7 +195,6 @@ async def get_chat_history(
             "model": c.model,
             "prompt": c.prompt,
             "response": c.response,
-            "image_url": getattr(c, 'image_url', None),
             "created_at": c.created_at.isoformat(),
             "session_id": c.session_id
         }
