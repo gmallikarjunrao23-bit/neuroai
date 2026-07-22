@@ -41,7 +41,15 @@ export default function AdminPage() {
       setDashboard(dash);
       setUsers(Array.isArray(usersData) ? usersData : []);
       setPayments(Array.isArray(paymentsData) ? paymentsData : []);
-    } catch { router.push("/login"); }
+    } catch (err: any) {
+      const msg = err?.message || "Failed to load admin data";
+      if (msg.includes("403") || msg.includes("Admin access")) {
+        toast.error("You need admin access. Use /chat page and visit /api/v1/auth/become-admin first.");
+      } else if (msg.includes("401") || msg.includes("Unauthorized")) {
+        router.push("/login");
+        return;
+      }
+    }
     setLoading(false);
   };
 
