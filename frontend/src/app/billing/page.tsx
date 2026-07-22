@@ -9,7 +9,8 @@ import {
   Sparkles, Check, Copy, Upload, Loader2, CheckCircle2, XCircle,
   Crown, Zap, Infinity, ArrowRight, Clock, Shield, ChevronRight,
   Wallet, Banknote, CreditCard, Download, Search, FileText, Eye,
-  MessageSquare, Image as ImageIcon, Bot, Phone
+  MessageSquare, Image as ImageIcon, Bot, Phone,
+  Brain,
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
 
@@ -45,6 +46,7 @@ export default function BillingPage() {
   const [success, setSuccess] = useState(false);
   const [payments, setPayments] = useState<any[]>([]);
   const [copied, setCopied] = useState(false);
+  const [vr, setVr] = useState<Record<string, any>>({show: false});
   const [currentStep, setCurrentStep] = useState(1);
   const [profile, setProfile] = useState<any>(null);
   const [verificationError, setVerificationError] = useState<string | null>(null);
@@ -67,11 +69,10 @@ export default function BillingPage() {
     }
   };
 
-  const submit = async () => {
+  const handleSubmit = async () => {
     if (!file) return;
     setLoading(true);
-    setVerificationError(null);
-    setVerificationChecks([]);
+    setVr({show: false});
     const form = new FormData();
     form.append("plan", selected);
     form.append("amount", String(plan.price));
@@ -80,70 +81,27 @@ export default function BillingPage() {
     try {
       const data = await api.initiatePayment(form);
       setSuccess(true);
-      toast.success("Payment submitted! ✅ Admin will review shortly.");
+      toast.success("Payment submitted! Admin will review shortly.");
       api.getMyPayments().then(d => setPayments(Array.isArray(d) ? d : [])).catch(() => {});
       api.getProfile().then(d => setProfile(d)).catch(() => {});
     } catch (err: any) {
-      let errorMsg = "Payment verification failed";
-      let checks = [];
-      let remaining = 10;
-      let isBan = false;
-
       try {
-        const rawData = typeof err?.message === "string" ? err.message : "{}";
-        const parsed = JSON.parse(rawData);
-        const detail = parsed?.detail || parsed;
-
+        const raw = typeof err?.message === "string" ? err.message : "{}";
+        const detail = JSON.parse(raw)?.detail || JSON.parse(raw);
         if (detail?.error === "ACCOUNT_BANNED") {
-          isBan = true;
-          errorMsg = detail.message || "Account permanently banned";
-          toast.error("🚫 " + errorMsg, { duration: 8000 });
-          toast.error("🔨 Reason: " + (detail.reason || "Fraud detected"), { duration: 8000 });
+          setVr({show: true, banned: true, score: 0, analysis: detail.reason || "", checks: [], reasons: ["Account banned for fraudulent activity"], used: 10, left: 0, banReason: detail.reason || ""});
+          toast.error("Account Banned! Contact admin.");
         } else if (detail?.error === "INVALID_PAYMENT_SCREENSHOT") {
-          errorMsg = detail.message || "Invalid payment screenshot";
-          checks = detail.checks || [];
-          remaining = detail.attempts_remaining || 0;
-          setVerificationChecks(checks);
-
-          // Show AI analysis in RED
-          if (detail.ai_analysis) {
-            toast.error("🤖 AI Detection: " + detail.ai_analysis, { duration: 8000 });
-          }
-
-          // Show all rejection reasons
-          (detail.rejection_reasons || []).forEach((r: string) => {
-            toast.error("✗ " + r, { duration: 5000 });
-          });
-
-          // Show failed checks
-          checks.forEach((c: any) => {
-            if (!c.passed) {
-              toast.error(`  ✗ ${c.name}: ${c.detail}`, { duration: 4000 });
-            }
-          });
-
-          // Show ALL AI logs (passed and failed)
-          checks.forEach((c: any) => {
-            if (c.passed) {
-              toast.success(`  ✓ ${c.name}: ${c.detail}`, { duration: 3000 });
-            }
-          });
-
-          toast.warning(
-            `⚠️ ${detail.attempts_used}/10 attempts used. ${remaining} remaining before permanent ban!`,
-            { duration: 7000 }
-          );
+          setVr({show: true, banned: false, score: detail.score || 0, analysis: detail.ai_analysis || "", checks: detail.checks || [], reasons: detail.rejection_reasons || [], used: detail.attempts_used || 0, left: detail.attempts_remaining || 0, banReason: ""});
+          toast.error("Verification Failed! See report below.");
         } else {
-          toast.error("❌ " + (detail?.message || err?.message || "Upload failed"));
+          toast.error(detail?.message || err.message);
         }
-      } catch (parseErr) {
-        toast.error("❌ " + (err?.message || "Upload failed. Try again."));
-      }
-
-      setVerificationError(errorMsg);
+      } catch { toast.error(err?.message || "Upload failed."); }
     }
     setLoading(false);
   };
+
 
   const goToStep = (step: number) => {
     if (step === 2) { setCurrentStep(2); return; }
@@ -366,30 +324,96 @@ export default function BillingPage() {
                         </label>
 
                         {file && (
-                          <button onClick={submit} disabled={loading}
+                          <button onClick={handleSubmit} disabled={loading}
                             className="w-full py-2.5 rounded-xl bg-gradient-to-r from-green-500 to-green-600 text-white text-sm font-medium hover:opacity-90 transition-all disabled:opacity-50 inline-flex items-center justify-center gap-2 shadow-lg shadow-green-500/20">
                             {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> AI Scanning...</> : <><CheckCircle2 className="w-4 h-4" /> Submit for Approval</>}
                           </button>
                         )}
 
-                        {/* Verification Error */}
-                        {verificationError && (
-                          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                            className="p-4 rounded-xl bg-red-500/5 border border-red-500/20">
-                            <div className="flex items-start gap-3">
-                              <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0">
-                                <XCircle className="w-4 h-4 text-red-400" />
-                              </div>
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium text-red-400">Verification Failed</p>
-                                <p className="text-xs text-muted-foreground mt-0.5">{verificationError}</p>
-                                {verificationChecks.filter(c => !c.passed).map((c, i) => (
-                                  <p key={i} className="text-[11px] text-red-400/80 mt-1">✗ {c.name}: {c.detail}</p>
-                                ))}
+                        {/* VERIFICATION REPORT */}
+                        {vr.show && vr.banned && (
+                          <div className="rounded-2xl border overflow-hidden mb-6 bg-card">
+                            <div className="p-4 bg-gradient-to-r from-red-600 to-red-800">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center text-white text-xl">🚫</div>
+                                <div>
+                                  <p className="text-sm font-bold text-white">Account Banned</p>
+                                  <p className="text-xs text-red-200">{vr.banReason || "Multiple failed payment attempts"}</p>
+                                </div>
                               </div>
                             </div>
-                          </motion.div>
+                            <div className="p-4 space-y-3">
+                              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                                <p className="text-xs text-red-400 font-medium">Account Banned</p>
+                                <p className="text-xs text-red-300/80 mt-1">Contact admin to appeal.</p>
+                              </div>
+                            </div>
+                          </div>
                         )}
+                        {vr.show && !vr.banned && (
+                          <div className="rounded-2xl border overflow-hidden mb-6 bg-card">
+                            <div className="p-4 bg-gradient-to-r from-red-500/10 to-red-600/5 border-b border-red-500/20">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center text-red-400 text-xl">❌</div>
+                                <div className="flex-1">
+                                  <p className="text-sm font-bold text-red-400">Verification Failed</p>
+                                  <p className="text-xs text-red-300/80">Your payment screenshot could not be verified as a genuine UPI payment screenshot.</p>
+                                </div>
+                                <div className="text-center">
+                                  <div className="text-lg font-bold text-red-400">{vr.score}</div>
+                                  <div className="text-[9px] text-red-300/60 uppercase">Score</div>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="p-4 space-y-3">
+                              {vr.analysis && (
+                                <div>
+                                  <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1 flex items-center gap-1"><Brain className="w-3 h-3" /> AI DETECTION RESULT</p>
+                                  <div className="p-3 rounded-lg bg-red-500/5 border border-red-500/10"><p className="text-xs text-red-400">{vr.analysis}</p></div>
+                                </div>
+                              )}
+                              {vr.reasons && vr.reasons.length > 0 && (
+                                <div>
+                                  <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1">WHY IT FAILED</p>
+                                  {vr.reasons.map((r: string, i: number) => (
+                                    <div key={i} className="flex items-start gap-2 p-2 rounded-lg bg-red-500/5 mb-1">
+                                      <span className="text-red-400 shrink-0 mt-0.5 text-xs">✖</span>
+                                      <p className="text-xs text-red-300">{r}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {vr.checks && vr.checks.length > 0 && (
+                                <div>
+                                  <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1 flex items-center gap-1"><FileText className="w-3 h-3" /> AI VERIFICATION LOGS</p>
+                                  {vr.checks.map((c: any, i: number) => (
+                                    <div key={i} className={"flex items-center gap-2 p-2 rounded-lg text-xs mb-0.5 " + (c.passed ? "bg-emerald-500/5" : "bg-red-500/5")}>
+                                      <span className="shrink-0">{c.passed ? "✅" : "❌"}</span>
+                                      <span className={"font-medium " + (c.passed ? "text-emerald-400" : "text-red-400")}>{c.name}: </span>
+                                      <span className="text-muted-foreground">{c.detail}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {!vr.banned && (
+                                <div className={"p-2 rounded-lg flex items-center gap-2 text-xs " + (vr.left <= 3 ? "bg-red-500/10 border border-red-500/20 text-red-300" : vr.left <= 6 ? "bg-amber-500/10 border border-amber-500/20 text-amber-300" : "bg-secondary/50 text-muted-foreground")}>
+                                  <span>⚠</span>
+                                  <span><strong>{vr.used} of 10 attempts used.</strong> {vr.left > 0 ? vr.left + " remaining before account ban." : "No attempts remaining!"}</span>
+                                </div>
+                              )}
+                              <div className="p-3 rounded-lg bg-secondary/30 border border-border">
+                                <p className="text-[10px] font-medium text-muted-foreground mb-1">How to fix:</p>
+                                <ul className="text-[10px] text-muted-foreground/80 space-y-0.5 list-disc pl-4">
+                                  <li>Upload a clear screenshot from your UPI app (Google Pay, PhonePe, Paytm, BHIM)</li>
+                                  <li>Amount <strong>Rs.{plan.price}</strong> and transaction ID must be visible</li>
+                                  <li>Must show &quot;Payment Successful&quot; or &quot;Amount Paid&quot; confirmation</li>
+                                  <li>Use fresh screenshot - no edited, cropped, or downloaded images</li>
+                                </ul>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                       </motion.div>
                     )}
                   </div>
