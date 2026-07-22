@@ -121,7 +121,7 @@ class PaymentVerifier:
 
             # Color diversity check - screenshots have MODERATE diversity
             div = analysis.get("diversity", 0.5)
-            if 0.05 < div < 0.6:
+            if 0.005 < div < 0.6:
                 self._add(results, "Color Profile", True, f"Normal diversity ({div:.2f})", "info")
                 results["score"] += 5
             elif div >= 0.6:
@@ -170,7 +170,7 @@ class PaymentVerifier:
                 self._add(results, "GPT-5", True, "Check skipped", "warning")
 
         # FINAL VERDICT - HIGHER threshold
-        if results["score"] >= 45 and results.get("detected_app"):
+        if results["score"] >= 35 and results.get("detected_app"):
             results["is_payment_screenshot"] = True
             results["passed"] = True
             self._add(results, "RESULT", True, f"PASSED ({results['score']}/100)", "success")
@@ -218,7 +218,7 @@ class PaymentVerifier:
         edges = gray.filter(ImageFilter.FIND_EDGES)
         edge_data = list(edges.getdata())
         edge_ratio = sum(1 for p in edge_data if p > 40) / len(edge_data)
-        result["has_text"] = 0.03 < edge_ratio < 0.5
+        result["has_text"] = 0.01 < edge_ratio < 0.5
 
         # Screenshot detection
         result["looks_like_screenshot"] = not (result["diversity"] > 0.7 and not result["has_text"])
