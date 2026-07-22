@@ -46,8 +46,6 @@ async def init_db():
             # 🔥 Auto-migrate: add missing columns
             for table, col, dtype in [
                 ("chat_history", "session_id", "VARCHAR(100) DEFAULT 'default'"),
-                ("chat_history", "image_url", "VARCHAR(500)"),
-                ("chat_history", "reasoning", "TEXT"),
             ]:
                 try:
                     await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {dtype}"))

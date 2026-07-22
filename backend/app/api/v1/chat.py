@@ -109,39 +109,39 @@ async def chat(
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
     
-    # Save to history with session_id (handles both text and image)
-    resp_text = result.get("response", "[No response]")
-    resp_image_url = result.get("image_url")
-    resp_reasoning = result.get("reasoning")
+    # Handle image response
+    if result.get("is_image"):
+        img_gen = ImageGeneration(user_id=user.id, prompt=req.message)
+        if result.get("image_url"):
+            img_gen.image_url = result["image_url"]
+        db.add(img_gen)
+        await db.flush()
+        return ChatResponse(
+            model=req.model,
+            response=result.get("response", "[Image generated]"),
+            tokens_used=1,
+            image_url=result.get("image_url")
+        )
     
+    # Save to history with session_id
     history = ChatHistory(
         user_id=user.id,
         session_id=session_id,
         model=req.model,
         prompt=req.message,
-        response=resp_text,
-        image_url=resp_image_url,
-        reasoning=resp_reasoning,
-        tokens_used=len(resp_text) // 4
+        response=result["response"],
+        tokens_used=len(result["response"]) // 4
     )
     db.add(history)
     
-    # Also save ImageGeneration record for gallery view
-    if result.get("is_image"):
-        img_gen = ImageGeneration(user_id=user.id, prompt=req.message)
-        if resp_image_url:
-            img_gen.image_url = resp_image_url
-        db.add(img_gen)
-    
     user.api_calls_today += 1
-    user.total_tokens_used += len(resp_text) // 4
+    user.total_tokens_used += len(result["response"]) // 4
     
     return ChatResponse(
         model=req.model,
-        response=resp_text,
-        tokens_used=len(resp_text) // 4,
-        image_url=resp_image_url,
-        reasoning=resp_reasoning
+        response=result["response"],
+        tokens_used=len(result["response"]) // 4,
+        reasoning=result.get("reasoning")
     )
 
 

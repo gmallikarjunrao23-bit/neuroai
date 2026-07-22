@@ -55,8 +55,6 @@ class ChatHistory(Base):
     model = Column(String(50), nullable=False)
     prompt = Column(Text, nullable=False)
     response = Column(Text, nullable=False)
-    image_url = Column(String(500), nullable=True)
-    reasoning = Column(Text, nullable=True)
     tokens_used = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
     user = relationship("User", back_populates="chat_history")
