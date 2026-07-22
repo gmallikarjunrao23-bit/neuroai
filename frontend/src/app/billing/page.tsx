@@ -74,13 +74,32 @@ export default function BillingPage() {
     form.append("upi_id", "toxic-karthik.sai@fam");
     form.append("file", file);
     try {
-      await api.initiatePayment(form);
+      const data = await api.initiatePayment(form);
       setSuccess(true);
-      toast.success("Payment submitted for approval! 🎉");
+      toast.success("Payment screenshot verified! ✅ Admin will review shortly.");
       api.getMyPayments().then(d => setPayments(Array.isArray(d) ? d : [])).catch(() => {});
       api.getProfile().then(d => setProfile(d)).catch(() => {});
     } catch (err: any) {
-      toast.error(err?.message || "Failed to submit");
+      let errorMsg = "Failed to submit payment";
+      try {
+        const errData = JSON.parse(err?.message || "{}");
+        if (errData?.detail?.error) {
+          errorMsg = errData.detail.reason || errData.detail.error;
+          toast.error("❌ " + errorMsg, { duration: 5000 });
+          // Show which checks failed
+          if (errData.detail.checks) {
+            errData.detail.checks.forEach((c: any) => {
+              if (!c.passed) {
+                toast.error(`  ✗ ${c.name}: ${c.detail}`, { duration: 4000 });
+              }
+            });
+          }
+        } else {
+          toast.error("❌ " + (errData.detail || err.message));
+        }
+      } catch {
+        toast.error("❌ " + (err?.message || "Upload failed. Please try again."));
+      }
     }
     setLoading(false);
   };

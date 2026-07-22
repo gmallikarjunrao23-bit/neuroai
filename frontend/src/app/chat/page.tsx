@@ -28,6 +28,7 @@ import {
   Clock,
   User,
   Keyboard,
+  ShieldAlert,
 } from "lucide-react";
 
 const API_BASE = "https://backend-production-87c9.up.railway.app";
@@ -43,6 +44,7 @@ const MODELS = [
   { id: "copilot", label: "Copilot", icon: Code2, desc: "Code-focused assistant", color: "from-green-500 to-emerald-600" },
   { id: "deep-ai", label: "Deep AI", icon: Sparkles, desc: "Deep learning model", color: "from-indigo-500 to-indigo-600" },
   { id: "dalle", label: "DALL·E", icon: ImageIcon, desc: "AI Image Generation", color: "from-pink-500 to-pink-600" },
+  { id: "ai-detector", label: "AI Detector", icon: ShieldAlert, desc: "Detect AI-generated content", color: "from-red-500 to-red-600" },
 ];
 
 function makeId() { return "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
@@ -66,6 +68,7 @@ function getThinkingText(model: string): string {
     "copilot": "Copilot is coding",
     "deep-ai": "Deep AI is analyzing",
     "dalle": "DALL·E is creating",
+    "ai-detector": "AI Detector is analyzing",
   };
   return map[model] || "Thinking";
 }

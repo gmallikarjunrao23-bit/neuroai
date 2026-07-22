@@ -119,17 +119,3 @@ async def become_admin(user: User = Depends(get_current_user), db: AsyncSession 
     return {"status": "success", "message": "You are now admin!", "role": user.role}
 
 
-@router.post("/revert-user")
-async def revert_user(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    """Revert user to default state - no subscription, user role."""
-    user.role = "user"
-    user.subscription_status = "none"
-    user.subscription_plan = "none"
-    user.kyc_verified = False
-    return {
-        "status": "success",
-        "message": "User reverted to default state",
-        "role": user.role,
-        "subscription_status": user.subscription_status,
-        "subscription_plan": user.subscription_plan
-    }
