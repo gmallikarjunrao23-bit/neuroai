@@ -43,17 +43,17 @@ async def init_db():
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
             
-            # 🔥 Auto-migrate: add session_id if missing
+            # 🔥 Auto-migrate: add missing columns
             for table, col, dtype in [
                 ("chat_history", "session_id", "VARCHAR(100) DEFAULT 'default'"),
                 ("chat_history", "image_url", "VARCHAR(500)"),
                 ("chat_history", "reasoning", "TEXT"),
             ]:
                 try:
-                    await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {dtype}"))
+                    await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {dtype}"))
                     logger.info(f"✅ Added column {col} to {table}")
                 except Exception as ex:
-                    if "already exists" not in str(ex).lower() and "duplicate" not in str(ex).lower():
+                    if "already exists" not in str(ex).lower() and "duplicate" not in str(ex).lower() and "already there" not in str(ex).lower():
                         logger.warning(f"Column {col} maybe exists: {ex}")
             
             await conn.commit()
