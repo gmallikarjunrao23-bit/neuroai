@@ -1,11 +1,11 @@
-"""Auth endpoints."""
+\"\"\"Auth endpoints.\"\"\"
 
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
-from app.models.user import User
+from app.models.user import User, Payment
 from app.schemas.user import UserRegister, UserLogin, TokenResponse, UserResponse
 from app.services.auth import verify_password, hash_password, create_access_token, decode_token
 
@@ -77,6 +77,40 @@ async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
 @router.get("/me", response_model=UserResponse)
 async def get_me(user: User = Depends(get_current_user)):
     return user
+
+
+@router.get("/profile")
+async def get_profile(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get user profile with payment history and subscription details."""
+    result = await db.execute(
+        select(Payment).where(Payment.user_id == user.id).order_by(Payment.created_at.desc())
+    )
+    payments = result.scalars().all()
+    return {
+        "id": str(user.id),
+        "email": user.email,
+        "name": user.name,
+        "role": user.role,
+        "subscription_status": user.subscription_status or "none",
+        "subscription_plan": user.subscription_plan or "none",
+        "kyc_verified": bool(user.kyc_verified),
+        "api_calls_today": user.api_calls_today or 0,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+        "payments": [
+            {
+                "id": str(p.id),
+                "plan": p.plan,
+                "amount": p.amount,
+                "status": p.status or "pending",
+                "admin_notes": p.admin_notes,
+                "created_at": p.created_at.isoformat() if p.created_at else None,
+            }
+            for p in payments
+        ]
+    }
 
 
 @router.post("/become-admin")

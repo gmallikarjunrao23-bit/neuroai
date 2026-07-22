@@ -90,11 +90,13 @@ class ApiClient {
   getPaymentPlans() { return this.get("/api/v1/payments/plans"); }
   initiatePayment(formData: FormData) { return this.uploadFormData("/api/v1/payments/initiate", formData); }
   getMyPayments() { return this.get("/api/v1/payments/my-payments"); }
+  getProfile() { return this.get("/api/v1/auth/profile"); }
   getAdminDashboard() { return this.get("/api/v1/admin/dashboard"); }
   getAdminUsers() { return this.get("/api/v1/admin/users"); }
   getAdminPayments(status?: string) { return this.get(status ? `/api/v1/admin/payments?status_filter=${status}` : "/api/v1/admin/payments"); }
   approvePayment(id: string, st: string, notes?: string) { return this.post(`/api/v1/admin/payments/${id}/approve`, { status: st, admin_notes: notes }); }
   toggleKyc(userId: string) { return this.post(`/api/v1/admin/users/${userId}/toggle-kyc`, {}); }
+  becomeAdmin() { return this.post("/api/v1/auth/become-admin", {}); }
 }
 
 export const api = new ApiClient();

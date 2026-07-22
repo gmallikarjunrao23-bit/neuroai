@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "@/lib/api";
 import { MarkdownRenderer } from "@/components/chat/MarkdownRenderer";
@@ -367,6 +368,14 @@ export default function ChatPage() {
               </div>
 
               <div className="p-3 border-t border-border space-y-1">
+                <Link href="/profile"
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
+                  <User className="w-4 h-4" /> Profile
+                </Link>
+                <Link href="/billing"
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
+                  <Sparkles className="w-4 h-4" /> Upgrade
+                </Link>
                 <button onClick={() => { api.clearToken(); router.push("/login"); }}
                   className="w-full text-left px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-red-500 hover:bg-red-500/5 transition-colors">
                   Sign out
