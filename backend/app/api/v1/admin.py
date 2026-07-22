@@ -55,6 +55,9 @@ async def list_users(admin: User = Depends(require_admin), db: AsyncSession = De
             "subscription_plan": u.subscription_plan or "none",
             "kyc_verified": bool(u.kyc_verified),
             "api_calls_today": u.api_calls_today or 0,
+            "is_banned": bool(u.is_banned) if hasattr(u, 'is_banned') else False,
+            "ban_reason": u.ban_reason,
+            "failed_payment_attempts": u.failed_payment_attempts or 0,
             "created_at": u.created_at.isoformat()
         }
         for u in users
@@ -121,3 +124,58 @@ async def toggle_kyc(
         raise HTTPException(status_code=404, detail="User not found")
     user.kyc_verified = not user.kyc_verified
     return {"status": "success", "kyc_verified": user.kyc_verified}
+
+@router.post("/users/{user_id}/toggle-ban")
+async def toggle_ban(
+    user_id: UUID,
+    data: dict = {},
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.role == "admin":
+        raise HTTPException(status_code=400, detail="Cannot ban another admin")
+
+    user.is_banned = not user.is_banned
+    if user.is_banned:
+        user.ban_reason = data.get("reason", "Banned by admin for fraudulent activity")
+    else:
+        user.ban_reason = None
+        user.failed_payment_attempts = 0
+
+    return {
+        "status": "success",
+        "is_banned": user.is_banned,
+        "ban_reason": user.ban_reason,
+        "failed_payment_attempts": user.failed_payment_attempts
+    }
+
+
+@router.get("/users/{user_id}/attempts")
+async def get_user_attempts(
+    user_id: UUID,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    from app.models.user import PaymentAttempt
+    result = await db.execute(
+        select(PaymentAttempt).where(PaymentAttempt.user_id == user_id).order_by(PaymentAttempt.created_at.desc()).limit(20)
+    )
+    attempts = result.scalars().all()
+    import json
+    return [
+        {
+            "id": str(a.id),
+            "plan": a.plan,
+            "amount": a.amount,
+            "ai_score": a.ai_score,
+            "ai_analysis": a.ai_analysis[:200] if a.ai_analysis else "",
+            "ai_checks": json.loads(a.ai_checks) if a.ai_checks else [],
+            "is_payment_screenshot": a.is_payment_screenshot,
+            "screenshot_path": a.screenshot_path,
+            "created_at": a.created_at.isoformat() if a.created_at else None
+        }
+        for a in attempts
+    ]

@@ -16,6 +16,8 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     role = Column(String(20), default="user")
     is_active = Column(Boolean, default=True)
+    is_banned = Column(Boolean, default=False)
+    ban_reason = Column(Text, nullable=True)
     subscription_status = Column(String(20), default="none")
     subscription_plan = Column(String(50), default="none")
     subscription_end = Column(DateTime, nullable=True)
@@ -24,10 +26,27 @@ class User(Base):
     total_tokens_used = Column(Integer, default=0)
     kyc_verified = Column(Boolean, default=False)
     kyc_image = Column(String(500), nullable=True)
+    failed_payment_attempts = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     payments = relationship("Payment", back_populates="user", foreign_keys="Payment.user_id")
     chat_history = relationship("ChatHistory", back_populates="user")
+    payment_attempts = relationship("PaymentAttempt", back_populates="user", foreign_keys="PaymentAttempt.user_id")
+
+
+class PaymentAttempt(Base):
+    __tablename__ = "payment_attempts"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    plan = Column(String(50), nullable=False)
+    amount = Column(Float, nullable=False)
+    ai_score = Column(Integer, default=0)
+    ai_checks = Column(Text, nullable=True)
+    ai_analysis = Column(Text, nullable=True)
+    is_payment_screenshot = Column(Boolean, default=False)
+    screenshot_path = Column(String(500), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    user = relationship("User", back_populates="payment_attempts", foreign_keys=[user_id])
 
 
 class Payment(Base):

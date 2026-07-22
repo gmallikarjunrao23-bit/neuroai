@@ -47,6 +47,8 @@ export default function BillingPage() {
   const [copied, setCopied] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [profile, setProfile] = useState<any>(null);
+  const [verificationError, setVerificationError] = useState<string | null>(null);
+  const [verificationChecks, setVerificationChecks] = useState<any[]>([]);
 
   useEffect(() => {
     if (!api.getToken()) { router.push("/login"); return; }
@@ -68,6 +70,8 @@ export default function BillingPage() {
   const submit = async () => {
     if (!file) return;
     setLoading(true);
+    setVerificationError(null);
+    setVerificationChecks([]);
     const form = new FormData();
     form.append("plan", selected);
     form.append("amount", String(plan.price));
@@ -76,30 +80,57 @@ export default function BillingPage() {
     try {
       const data = await api.initiatePayment(form);
       setSuccess(true);
-      toast.success("Payment screenshot verified! ✅ Admin will review shortly.");
+      toast.success("Payment submitted! ✅ Admin will review shortly.");
       api.getMyPayments().then(d => setPayments(Array.isArray(d) ? d : [])).catch(() => {});
       api.getProfile().then(d => setProfile(d)).catch(() => {});
     } catch (err: any) {
-      let errorMsg = "Failed to submit payment";
+      let errorMsg = "Payment verification failed";
+      let checks = [];
+      let remaining = 10;
+      let isBan = false;
+
       try {
-        const errData = JSON.parse(err?.message || "{}");
-        if (errData?.detail?.error) {
-          errorMsg = errData.detail.reason || errData.detail.error;
-          toast.error("❌ " + errorMsg, { duration: 5000 });
-          // Show which checks failed
-          if (errData.detail.checks) {
-            errData.detail.checks.forEach((c: any) => {
-              if (!c.passed) {
-                toast.error(`  ✗ ${c.name}: ${c.detail}`, { duration: 4000 });
-              }
-            });
+        const rawData = typeof err?.message === "string" ? err.message : "{}";
+        const parsed = JSON.parse(rawData);
+        const detail = parsed?.detail || parsed;
+
+        if (detail?.error === "ACCOUNT_BANNED") {
+          isBan = true;
+          errorMsg = detail.message || "Account permanently banned";
+          toast.error("🚫 " + errorMsg, { duration: 8000 });
+          toast.error("🔨 Reason: " + (detail.reason || "Fraud detected"), { duration: 8000 });
+        } else if (detail?.error === "INVALID_PAYMENT_SCREENSHOT") {
+          errorMsg = detail.message || "Invalid payment screenshot";
+          checks = detail.checks || [];
+          remaining = detail.attempts_remaining || 0;
+          setVerificationChecks(checks);
+
+          if (detail.ai_analysis) {
+            toast.error("🤖 AI Detection: " + detail.ai_analysis, { duration: 7000 });
           }
+
+          (detail.rejection_reasons || []).forEach((r: string) => {
+            toast.error("✗ " + r, { duration: 5000 });
+          });
+
+          checks.forEach((c: any) => {
+            if (!c.passed) {
+              toast.error(`  ✗ ${c.name}: ${c.detail}`, { duration: 4000 });
+            }
+          });
+
+          toast.warning(
+            `⚠️ ${detail.attempts_used}/10 attempts used. ${remaining} remaining before permanent ban!`,
+            { duration: 7000 }
+          );
         } else {
-          toast.error("❌ " + (errData.detail || err.message));
+          toast.error("❌ " + (detail?.message || err?.message || "Upload failed"));
         }
-      } catch {
-        toast.error("❌ " + (err?.message || "Upload failed. Please try again."));
+      } catch (parseErr) {
+        toast.error("❌ " + (err?.message || "Upload failed. Try again."));
       }
+
+      setVerificationError(errorMsg);
     }
     setLoading(false);
   };
@@ -327,8 +358,27 @@ export default function BillingPage() {
                         {file && (
                           <button onClick={submit} disabled={loading}
                             className="w-full py-2.5 rounded-xl bg-gradient-to-r from-green-500 to-green-600 text-white text-sm font-medium hover:opacity-90 transition-all disabled:opacity-50 inline-flex items-center justify-center gap-2 shadow-lg shadow-green-500/20">
-                            {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Submitting...</> : <><CheckCircle2 className="w-4 h-4" /> Submit for Approval</>}
+                            {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> AI Scanning...</> : <><CheckCircle2 className="w-4 h-4" /> Submit for Approval</>}
                           </button>
+                        )}
+
+                        {/* Verification Error */}
+                        {verificationError && (
+                          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                            className="p-4 rounded-xl bg-red-500/5 border border-red-500/20">
+                            <div className="flex items-start gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0">
+                                <XCircle className="w-4 h-4 text-red-400" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-red-400">Verification Failed</p>
+                                <p className="text-xs text-muted-foreground mt-0.5">{verificationError}</p>
+                                {verificationChecks.filter(c => !c.passed).map((c, i) => (
+                                  <p key={i} className="text-[11px] text-red-400/80 mt-1">✗ {c.name}: {c.detail}</p>
+                                ))}
+                              </div>
+                            </div>
+                          </motion.div>
                         )}
                       </motion.div>
                     )}

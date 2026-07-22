@@ -96,6 +96,9 @@ class ApiClient {
   getAdminPayments(status?: string) { return this.get(status ? `/api/v1/admin/payments?status_filter=${status}` : "/api/v1/admin/payments"); }
   approvePayment(id: string, st: string, notes?: string) { return this.post(`/api/v1/admin/payments/${id}/approve`, { status: st, admin_notes: notes }); }
   toggleKyc(userId: string) { return this.post(`/api/v1/admin/users/${userId}/toggle-kyc`, {}); }
+  toggleBan(userId: string, reason?: string) { return this.post(`/api/v1/admin/users/${userId}/toggle-ban`, { reason: reason || "" }); }
+  getUserAttempts(userId: string) { return this.get(`/api/v1/admin/users/${userId}/attempts`); }
+  getMyAttempts() { return this.get("/api/v1/payments/my-attempts"); }
   becomeAdmin() { return this.post("/api/v1/auth/become-admin", {}); }
 }
 
