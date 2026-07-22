@@ -70,6 +70,7 @@ export default function BillingPage() {
   const handleSubmit = async () => {
     if (!file) return;
     setLoading(true);
+    setVr({show: false});
     const form = new FormData();
     form.append("plan", selected);
     form.append("amount", String(plan.price));
@@ -86,7 +87,11 @@ export default function BillingPage() {
         const raw = typeof err?.message === "string" ? err.message : "{}";
         const detail = JSON.parse(raw)?.detail || JSON.parse(raw);
         if (detail?.error === "ACCOUNT_BANNED") {
+          setVr({show:true,banned:true,score:0,analysis:detail.reason||"",checks:[],reasons:["Account banned"],used:10,left:0,banReason:detail.reason||""});
           toast.error("Account Banned! Contact admin.");
+        } else if (detail?.error === "INVALID_PAYMENT_SCREENSHOT") {
+          setVr({show:true,banned:false,score:detail.score||0,analysis:detail.ai_analysis||"",checks:detail.checks||[],reasons:detail.rejection_reasons||[],used:detail.attempts_used||0,left:detail.attempts_remaining||0,banReason:"",detectedApp:detail.detected_app||null});
+          toast.error("Verification Failed! See report below.");
         } else {
           toast.error(detail?.message || err.message);
         }
@@ -321,6 +326,42 @@ export default function BillingPage() {
                             className="w-full py-2.5 rounded-xl bg-gradient-to-r from-green-500 to-green-600 text-white text-sm font-medium hover:opacity-90 transition-all disabled:opacity-50 inline-flex items-center justify-center gap-2 shadow-lg shadow-green-500/20">
                             {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> AI Scanning...</> : <><CheckCircle2 className="w-4 h-4" /> Submit for Approval</>}
                           </button>
+                        )}
+
+                        {/* VERIFICATION REPORT */}
+                        {vr.show && !vr.banned && (
+                          <div className="rounded-2xl border overflow-hidden bg-card">
+                            <div className="p-4 bg-gradient-to-r from-red-500/10 to-red-600/5 border-b border-red-500/20">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center text-red-400 text-xl">X</div>
+                                <div className="flex-1">
+                                  <p className="text-sm font-bold text-red-400">Verification Failed</p>
+                                  <p className="text-xs text-red-300/80">AI rejected this screenshot</p>
+                                </div>
+                                <div className="text-center">
+                                  <div className="text-lg font-bold text-red-400">{vr.score}</div>
+                                  <div className="text-[9px] text-red-300/60 uppercase">Score</div>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="p-4 space-y-3">
+                              {vr.analysis && <div><p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1">AI DETECTION</p><div className="p-3 rounded-lg bg-red-500/5 border border-red-500/10"><p className="text-xs text-red-400">{vr.analysis}</p></div></div>}
+                              {vr.reasons && vr.reasons.length > 0 && <div><p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1">FAILED CHECKS</p>{vr.reasons.map((r:any,i:number) => <div key={i} className="flex items-start gap-2 p-2 rounded-lg bg-red-500/5 mb-1"><span className="text-red-400 text-xs">-</span><p className="text-xs text-red-300">{r}</p></div>)}</div>}
+                              {vr.checks && vr.checks.length > 0 && <div><p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1">CHECKS</p>{vr.checks.map((c:any,i:number) => <div key={i} className={"flex items-center gap-2 p-2 rounded-lg text-xs mb-0.5 " + (c.passed ? "bg-emerald-500/5" : "bg-red-500/5")}><span>{c.passed ? "OK" : "NO"}</span><span className={"font-medium " + (c.passed ? "text-emerald-400" : "text-red-400")}>{c.name}</span><span className="text-muted-foreground ml-1">{c.detail}</span></div>)}</div>}
+                              <div className={"p-2 rounded-lg flex items-center gap-2 text-xs " + (vr.left <= 3 ? "bg-red-500/10 text-red-300" : vr.left <= 6 ? "bg-amber-500/10 text-amber-300" : "bg-secondary/50 text-muted-foreground")}><span>Warning</span><span><strong>{vr.used}/10 used.</strong> {vr.left > 0 ? vr.left + " remaining." : "No attempts left!"}</span></div>
+                            </div>
+                          </div>
+                        )}
+                        {vr.show && vr.banned && (
+                          <div className="rounded-2xl border overflow-hidden bg-card">
+                            <div className="p-4 bg-gradient-to-r from-red-600 to-red-800">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center text-white text-xl">!</div>
+                                <div><p className="text-sm font-bold text-white">Account Banned</p><p className="text-xs text-red-200">{vr.banReason}</p></div>
+                              </div>
+                            </div>
+                            <div className="p-4"><div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20"><p className="text-xs text-red-400 font-medium">Banned</p><p className="text-xs text-red-300/80 mt-1">Contact admin to appeal.</p></div></div>
+                          </div>
                         )}
 
                       </motion.div>
