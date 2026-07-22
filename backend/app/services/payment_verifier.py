@@ -47,8 +47,8 @@ class PaymentVerifier:
 
         # ============ LAYER 2: SIZE CHECK ============
         file_size = len(image_bytes)
-        if file_size < 20 * 1024:
-            self._add_check(results, "File Size", False, f"Too small ({file_size/1024:.1f}KB). Payment screenshots are 50KB-5MB.", "high")
+        if file_size < 10 * 1024:
+            self._add_check(results, "File Size", False, f"Too small ({file_size/1024:.1f}KB). Payment screenshots are 10KB-5MB.", "high")
             results["rejection_reasons"].append(f"Image too small: {file_size/1024:.1f}KB")
             results["score"] -= 40
         else:
