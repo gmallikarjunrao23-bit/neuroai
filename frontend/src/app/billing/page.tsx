@@ -376,7 +376,7 @@ export default function BillingPage() {
             </div>
           </div>
 
-          {/* SUCCESS REPORT - Premium */}
+          {/* SUCCESS REPORT - Premium with all AI details */}
           {success && successData && (
             <motion.div
               initial={{ opacity: 0, y: 10, scale: 0.98 }}
@@ -390,7 +390,11 @@ export default function BillingPage() {
                   </div>
                   <div className="flex-1">
                     <h3 className="text-lg font-bold text-emerald-400">Payment Submitted Successfully!</h3>
-                    <p className="text-sm text-emerald-300/80">Your payment screenshot has been received and sent for admin review.</p>
+                    <p className="text-sm text-emerald-300/80">Your payment screenshot has been verified and sent for admin review.</p>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-emerald-400">{successData.verification_score || 0}</div>
+                    <div className="text-[9px] text-emerald-300/60 uppercase">Score</div>
                   </div>
                 </div>
               </div>
@@ -405,6 +409,38 @@ export default function BillingPage() {
                     <p className="text-sm font-bold mt-0.5">Rs.{plan.price}</p>
                   </div>
                 </div>
+
+                {/* AI VERIFICATION RESULT */}
+                {successData.detected_app && (
+                  <div className="p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/20 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-emerald-400">UPI App Detected: <strong>{successData.detected_app}</strong></p>
+                      <p className="text-[10px] text-emerald-300/60">Payment screenshot verified by AI</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* ALL AI CHECKS - same style as failed box */}
+                {successData.checks && successData.checks.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1 flex items-center gap-1">
+                      <FileText className="w-3 h-3" /> AI VERIFICATION DETAILS
+                    </p>
+                    <div className="space-y-1">
+                      {successData.checks.map((c: any, i: number) => (
+                        <div key={i} className={"flex items-center gap-2 p-2 rounded-lg text-xs " + (c.passed ? "bg-emerald-500/5" : "bg-red-500/5")}>
+                          <span className="shrink-0">{c.passed ? "✅" : "❌"}</span>
+                          <span className={"font-medium " + (c.passed ? "text-emerald-400" : "text-red-400")}>{c.name}</span>
+                          <span className="text-muted-foreground ml-1">{c.detail}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/20 flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
                     <Clock className="w-4 h-4 text-emerald-400" />

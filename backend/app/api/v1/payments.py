@@ -122,7 +122,10 @@ async def initiate_payment(
         "status": "pending",
         "message": "Payment submitted for admin review!",
         "verification_score": verification["score"],
-        "checks": verification["checks"]
+        "checks": verification["checks"],
+        "detected_app": verification.get("detected_app"),
+        "is_payment_screenshot": verification.get("is_payment_screenshot", False),
+        "amount_matches": verification.get("amount_matches", False),
     }
 
 
