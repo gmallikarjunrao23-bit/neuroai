@@ -1,4 +1,4 @@
-\"\"\"Auth endpoints.\"\"\"
+"""Auth endpoints with profile support."""
 
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status, Header
@@ -36,12 +36,11 @@ async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == data.email))
     if result.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Email exists")
-    
-    # First user becomes admin automatically
+
     count_result = await db.execute(select(User))
     existing_users = count_result.scalars().all()
     is_first = len(existing_users) == 0
-    
+
     user = User(
         email=data.email,
         name=data.name,
@@ -51,7 +50,7 @@ async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
     db.add(user)
     await db.flush()
     await db.refresh(user)
-    
+
     token = create_access_token(user.id, user.role)
     return TokenResponse(access_token=token, user={
         "id": str(user.id), "email": user.email, "name": user.name, "role": user.role
@@ -64,7 +63,7 @@ async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
     user = result.scalar_one_or_none()
     if not user or not verify_password(data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    
+
     token = create_access_token(user.id, user.role)
     return TokenResponse(access_token=token, user={
         "id": str(user.id), "email": user.email, "name": user.name, "role": user.role,
@@ -84,7 +83,7 @@ async def get_profile(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get user profile with payment history and subscription details."""
+    """Get user profile with payment history."""
     result = await db.execute(
         select(Payment).where(Payment.user_id == user.id).order_by(Payment.created_at.desc())
     )
@@ -117,4 +116,4 @@ async def get_profile(
 async def become_admin(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Promote authenticated user to admin (one-time per user)."""
     user.role = "admin"
-    return {"status": "success", "message": f"You are now admin!", "role": user.role}
+    return {"status": "success", "message": "You are now admin!", "role": user.role}
