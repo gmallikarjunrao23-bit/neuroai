@@ -10,7 +10,7 @@ from app.core.config import settings
 
 MODELS = {
     "gpt-logic": {"url": "https://r-bots-free-apis.co08.art/api/v1/api/gptlogic", "params": {"q": "{query}", "prompt": "You are a helpful assistant."}, "label": "GPT Logic", "icon": "Bot", "color": "from-blue-500 to-blue-600", "desc": "Advanced GPT-based reasoning model"},
-    "copilot": {"url": "https://r-bots-free-apis.co08.art/api/v1/api/copilot", "params": {"text": "{query}"}, "label": "GitHub Copilot", "icon": "Code2", "color": "from-green-500 to-emerald-600", "desc": "Code-focused AI assistant"},
+    "copilot": {"url": "https://r-bots-free-apis.co08.art/api/v1/api/copilot", "params": {"q": "{query}"}, "label": "GitHub Copilot", "icon": "Code2", "color": "from-green-500 to-emerald-600", "desc": "Code-focused AI assistant"},
     "gpt-5": {"url": "https://r-bots-free-apis.co08.art/api/v1/api/gpt-5", "params": {"q": "{query}"}, "label": "GPT-5", "icon": "Brain", "color": "from-purple-500 to-purple-600", "desc": "Latest GPT generation"},
     "deep-ai": {"url": "https://r-bots-free-apis.co08.art/api/v1/api/deep-ai", "params": {"query": "{query}"}, "label": "Deep AI", "icon": "Sparkles", "color": "from-indigo-500 to-indigo-600", "desc": "Deep learning AI model"},
     "llama-meta": {"url": "https://r-bots-free-apis.co08.art/api/v1/api/llama-meta", "params": {"q": "{query}"}, "label": "Llama Meta", "icon": "Bot", "color": "from-orange-500 to-orange-600", "desc": "Meta's open-source LLM"},
@@ -19,7 +19,7 @@ MODELS = {
     "gpt-3": {"url": "https://r-bots-free-apis.co08.art/api/v1/api/gpt3", "params": {"q": "{query}"}, "label": "GPT-3", "icon": "Bot", "color": "from-sky-500 to-sky-600", "desc": "Classic GPT-3 model"},
     "gemini": {"url": "https://r-bots-free-apis.co08.art/api/v1/api/gemini", "params": {"q": "{query}"}, "label": "Gemini", "icon": "Sparkles", "color": "from-amber-500 to-amber-600", "desc": "Google Gemini AI"},
     "dalle": {"url": "https://r-bots-free-apis.co08.art/api/v1/api/dalle", "params": {"q": "{query}"}, "label": "DALL-E", "icon": "Image", "color": "from-pink-500 to-pink-600", "desc": "AI Image Generation", "is_image": True},
-    "cohere": {"url": "https://r-bots-free-apis.co08.art/api/v1/api/cohere", "params": {"text": "{query}"}, "label": "Cohere", "icon": "MessageSquare", "color": "from-rose-500 to-rose-600", "desc": "Cohere AI assistant"},
+    "cohere": {"url": "https://r-bots-free-apis.co08.art/api/v1/api/cohere", "params": {"q": "{query}"}, "label": "Cohere", "icon": "MessageSquare", "color": "from-rose-500 to-rose-600", "desc": "Cohere AI assistant"},
 }
 
 TEXT_KEYS = ["response", "message", "results", "text", "content", "reply"]

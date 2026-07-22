@@ -6,7 +6,7 @@ from PIL import Image, ImageFilter
 import io
 import re
 
-PLANS = {"starter": 99, "pro": 499, "premium": 999, "lifetime": 4999}
+PLANS = {"basic": 199, "pro": 499, "premium": 999, "lifetime": 4999}
 UPI_ID = "toxic-karthik.sai@fam"
 
 UPI_APPS = {

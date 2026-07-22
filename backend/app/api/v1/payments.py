@@ -14,10 +14,9 @@ router = APIRouter(prefix="/payments", tags=["Payments"])
 MAX_ATTEMPTS = 10
 
 PLANS = {
-    "starter": {"name": "Starter", "price": 99, "desc": "100 chats/day, 5 models"},
+    "basic": {"name": "Basic", "price": 199, "desc": "200 chats/day, all models"},
     "pro": {"name": "Professional", "price": 499, "desc": "500 chats/day, all models, image gen"},
     "premium": {"name": "Premium", "price": 999, "desc": "Unlimited chats, all models, priority"},
-    "lifetime": {"name": "Lifetime", "price": 4999, "desc": "Lifetime access, everything included"},
 }
 UPI_ID = "toxic-karthik.sai@fam"
 

@@ -16,22 +16,22 @@ import { Toaster, toast } from "sonner";
 
 const PLANS = [
   {
+    key: "basic", name: "Basic", price: 199,
+    desc: "For starters",
+    features: ["200 chats/day", "All AI models", "Basic support"],
+    icon: Sparkles, color: "from-green-500 to-green-600", popular: false,
+  },
+  {
     key: "pro", name: "Pro", price: 499,
     desc: "Perfect for daily use",
     features: ["500 chats/day", "All AI models", "Image generation", "File analysis"],
-    icon: Zap, color: "from-blue-500 to-blue-600", popular: false,
+    icon: Zap, color: "from-blue-500 to-blue-600", popular: true,
   },
   {
     key: "premium", name: "Premium", price: 999,
     desc: "For power users",
     features: ["Unlimited chats", "All AI models", "Image generation", "Priority support", "Early access"],
-    icon: Crown, color: "from-amber-500 to-amber-600", popular: true,
-  },
-  {
-    key: "lifetime", name: "Lifetime", price: 4999,
-    desc: "One-time payment, forever access",
-    features: ["Everything unlimited", "All models forever", "Priority support", "Beta features", "Lifetime updates"],
-    icon: Infinity, color: "from-purple-500 to-purple-600", popular: false,
+    icon: Crown, color: "from-amber-500 to-amber-600", popular: false,
   },
 ];
 
