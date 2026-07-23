@@ -20,6 +20,13 @@ class Settings(BaseSettings):
 
     UPLOAD_DIR: str = "static/uploads"
     RAILWAY_PUBLIC_DOMAIN: Optional[str] = None
+    FRONTEND_URL: str = "https://web-production-a5dad.up.railway.app"
+
+    # OAuth Settings
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    GITHUB_CLIENT_ID: str = ""
+    GITHUB_CLIENT_SECRET: str = ""
 
     @property
     def cors_origins_list(self) -> list[str]:

@@ -1,13 +1,16 @@
-"""Auth endpoints with profile support."""
+"""Auth endpoints with OAuth support."""
 
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, status, Header
+from fastapi import APIRouter, Depends, HTTPException, status, Header, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
+from app.core.config import settings
 from app.models.user import User, Payment
 from app.schemas.user import UserRegister, UserLogin, TokenResponse, UserResponse
 from app.services.auth import verify_password, hash_password, create_access_token, decode_token
+import httpx
+import json
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -83,7 +86,6 @@ async def get_profile(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get user profile with payment history."""
     result = await db.execute(
         select(Payment).where(Payment.user_id == user.id).order_by(Payment.created_at.desc())
     )
@@ -114,8 +116,149 @@ async def get_profile(
 
 @router.post("/become-admin")
 async def become_admin(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    """Promote authenticated user to admin."""
     user.role = "admin"
     return {"status": "success", "message": "You are now admin!", "role": user.role}
 
 
+# =============== OAUTH ENDPOINTS ===============
+
+@router.get("/oauth/google/url")
+async def google_oauth_url():
+    """Get Google OAuth URL for frontend redirect."""
+    if not settings.GOOGLE_CLIENT_ID:
+        return {"url": None, "error": "Google OAuth not configured"}
+    redirect_uri = f"{settings.FRONTEND_URL}/api/v1/auth/oauth/google/callback"
+    url = f"https://accounts.google.com/o/oauth2/v2/auth?client_id={settings.GOOGLE_CLIENT_ID}&redirect_uri={redirect_uri}&response_type=code&scope=email%20profile"
+    return {"url": url}
+
+
+@router.get("/oauth/github/url")
+async def github_oauth_url():
+    """Get GitHub OAuth URL for frontend redirect."""
+    if not settings.GITHUB_CLIENT_ID:
+        return {"url": None, "error": "GitHub OAuth not configured"}
+    redirect_uri = f"{settings.FRONTEND_URL}/api/v1/auth/oauth/github/callback"
+    url = f"https://github.com/login/oauth/authorize?client_id={settings.GITHUB_CLIENT_ID}&redirect_uri={redirect_uri}&scope=read:user%20user:email"
+    return {"url": url}
+
+
+@router.post("/oauth/google/callback")
+async def google_callback(code: str = Query(...), db: AsyncSession = Depends(get_db)):
+    """Handle Google OAuth callback."""
+    if not settings.GOOGLE_CLIENT_ID:
+        raise HTTPException(400, "Google OAuth not configured")
+    
+    # Exchange code for token
+    redirect_uri = f"{settings.FRONTEND_URL}/api/v1/auth/oauth/google/callback"
+    async with httpx.AsyncClient() as client:
+        resp = await client.post("https://oauth2.googleapis.com/token", data={
+            "client_id": settings.GOOGLE_CLIENT_ID,
+            "client_secret": settings.GOOGLE_CLIENT_SECRET,
+            "code": code,
+            "redirect_uri": redirect_uri,
+            "grant_type": "authorization_code",
+        })
+        if resp.status_code != 200:
+            raise HTTPException(400, "Failed to exchange code")
+        tokens = resp.json()
+    
+    # Get user info
+    async with httpx.AsyncClient() as client:
+        resp = await client.get("https://www.googleapis.com/oauth2/v2/userinfo",
+            headers={"Authorization": f"Bearer {tokens['access_token']}"})
+        if resp.status_code != 200:
+            raise HTTPException(400, "Failed to get user info")
+        google_user = resp.json()
+    
+    email = google_user.get("email", "")
+    name = google_user.get("name", email.split("@")[0] if email else "Google User")
+    
+    # Create or login user
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+    
+    if not user:
+        result = await db.execute(select(User))
+        existing = result.scalars().all()
+        user = User(
+            email=email, name=name,
+            hashed_password=hash_password(email + settings.SECRET_KEY),
+            role="admin" if len(existing) == 0 else "user",
+        )
+        db.add(user)
+        await db.flush()
+        await db.refresh(user)
+    
+    token = create_access_token(user.id, user.role)
+    return TokenResponse(access_token=token, user={
+        "id": str(user.id), "email": user.email, "name": user.name, "role": user.role,
+        "subscription_status": user.subscription_status,
+        "subscription_plan": user.subscription_plan,
+    })
+
+
+@router.post("/oauth/github/callback")
+async def github_callback(code: str = Query(...), db: AsyncSession = Depends(get_db)):
+    """Handle GitHub OAuth callback."""
+    if not settings.GITHUB_CLIENT_ID:
+        raise HTTPException(400, "GitHub OAuth not configured")
+    
+    # Exchange code for token
+    async with httpx.AsyncClient() as client:
+        resp = await client.post("https://github.com/login/oauth/access_token", data={
+            "client_id": settings.GITHUB_CLIENT_ID,
+            "client_secret": settings.GITHUB_CLIENT_SECRET,
+            "code": code,
+        }, headers={"Accept": "application/json"})
+        if resp.status_code != 200:
+            raise HTTPException(400, "Failed to exchange code")
+        tokens = resp.json()
+    
+    # Get user info
+    async with httpx.AsyncClient() as client:
+        resp = await client.get("https://api.github.com/user",
+            headers={"Authorization": f"Bearer {tokens['access_token']}",
+                      "Accept": "application/json"})
+        if resp.status_code != 200:
+            raise HTTPException(400, "Failed to get user info")
+        gh_user = resp.json()
+    
+    login = gh_user.get("login", "")
+    name = gh_user.get("name", login or "GitHub User")
+    email = gh_user.get("email", f"{login}@github.oauth")
+    
+    if not email or "@" not in email:
+        # Try to fetch emails
+        async with httpx.AsyncClient() as client:
+            resp = await client.get("https://api.github.com/user/emails",
+                headers={"Authorization": f"Bearer {tokens['access_token']}"})
+            if resp.status_code == 200:
+                emails = resp.json()
+                for e in emails:
+                    if e.get("primary") and e.get("verified"):
+                        email = e["email"]
+                        break
+                if not email and emails:
+                    email = emails[0]["email"]
+    
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+    
+    if not user:
+        result = await db.execute(select(User))
+        existing = result.scalars().all()
+        user = User(
+            email=email, name=name,
+            hashed_password=hash_password(email + settings.SECRET_KEY),
+            role="admin" if len(existing) == 0 else "user",
+        )
+        db.add(user)
+        await db.flush()
+        await db.refresh(user)
+    
+    token = create_access_token(user.id, user.role)
+    return TokenResponse(access_token=token, user={
+        "id": str(user.id), "email": user.email, "name": user.name, "role": user.role,
+        "subscription_status": user.subscription_status,
+        "subscription_plan": user.subscription_plan,
+    })
