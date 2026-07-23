@@ -148,8 +148,7 @@ async def google_callback(code: str = Query(...), db: AsyncSession = Depends(get
     if not settings.GOOGLE_CLIENT_ID:
         raise HTTPException(400, "Google OAuth not configured")
     
-    # Exchange code for token
-    redirect_uri = f"{settings.FRONTEND_URL}/api/v1/auth/oauth/google/callback"
+    redirect_uri = settings.FRONTEND_URL + "/auth/callback?provider=google"
     async with httpx.AsyncClient() as client:
         resp = await client.post("https://oauth2.googleapis.com/token", data={
             "client_id": settings.GOOGLE_CLIENT_ID,
@@ -203,7 +202,6 @@ async def github_callback(code: str = Query(...), db: AsyncSession = Depends(get
     if not settings.GITHUB_CLIENT_ID:
         raise HTTPException(400, "GitHub OAuth not configured")
     
-    # Exchange code for token
     async with httpx.AsyncClient() as client:
         resp = await client.post("https://github.com/login/oauth/access_token", data={
             "client_id": settings.GITHUB_CLIENT_ID,
@@ -211,7 +209,7 @@ async def github_callback(code: str = Query(...), db: AsyncSession = Depends(get
             "code": code,
         }, headers={"Accept": "application/json"})
         if resp.status_code != 200:
-            raise HTTPException(400, "Failed to exchange code")
+            raise HTTPException(400, detail="Failed to exchange code with GitHub. Please try again.")
         tokens = resp.json()
     
     # Get user info
@@ -227,7 +225,7 @@ async def github_callback(code: str = Query(...), db: AsyncSession = Depends(get
     name = gh_user.get("name", login or "GitHub User")
     email = gh_user.get("email", f"{login}@github.oauth")
     
-    if not email or "@" not in email:
+    if not email or "@github.oauth" in email or "@" not in email:
         # Try to fetch emails
         async with httpx.AsyncClient() as client:
             resp = await client.get("https://api.github.com/user/emails",
