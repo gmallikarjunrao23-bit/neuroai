@@ -17,6 +17,19 @@ export default function LoginPage() {
   const [oauthUrls, setOauthUrls] = useState<{google?: string; github?: string}>({});
 
   useEffect(() => {
+    // 🔥 If already logged in, redirect away from login page!
+    const token = api.getToken();
+    if (token) {
+      fetch(API_BASE + "/api/v1/auth/me", { headers: { "Authorization": `Bearer ${token}` } })
+        .then(r => r.json())
+        .then(data => {
+          if (data.role) {
+            router.push(data.role === "admin" ? "/admin" : "/chat");
+          }
+        })
+        .catch(() => {});
+    }
+
     // Fetch OAuth URLs
     fetch(API_BASE + "/api/v1/auth/oauth/google/url").then(r=>r.json()).then(d => {
       if (d.url) setOauthUrls(p => ({...p, google: d.url}));

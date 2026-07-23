@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Brain, Sparkles, MessageSquare, Zap, ArrowRight, Bot, Code2, Image as ImageIcon, Moon, Sun } from "lucide-react";
+import { api } from "@/lib/api";
 
 const MODELS_PREVIEW = [
   { name: "GPT-5", icon: Brain, color: "from-purple-500 to-purple-600", desc: "Latest generation" },
@@ -28,6 +29,10 @@ export default function Home() {
   useEffect(() => {
     setMounted(true);
     document.documentElement.classList.add("dark");
+    // 🔥 If already logged in, redirect to chat
+    if (api.getToken()) {
+      window.location.href = "/chat";
+    }
   }, []);
 
   const toggleDark = () => {
