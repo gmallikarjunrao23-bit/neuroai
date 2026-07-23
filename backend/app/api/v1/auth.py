@@ -260,3 +260,56 @@ async def github_callback(code: str = Query(...), db: AsyncSession = Depends(get
         "subscription_status": user.subscription_status,
         "subscription_plan": user.subscription_plan,
     })
+# =============== SUPABASE AUTH ENDPOINTS ===============
+
+@router.post("/supabase/login")
+async def supabase_login(data: dict, db: AsyncSession = Depends(get_db)):
+    """Login or register via Supabase Auth token."""
+    supabase_token = data.get("access_token", "")
+    if not supabase_token:
+        raise HTTPException(400, detail="No token provided")
+    
+    # Verify the token with Supabase
+    from app.services.supabase_service import get_supabase
+    sb = get_supabase()
+    try:
+        user_data = sb.auth.get_user(supabase_token)
+        sb_user = user_data.user
+    except Exception as e:
+        raise HTTPException(401, detail=f"Invalid Supabase token: {str(e)[:50]}")
+    
+    email = sb_user.email or ""
+    name = sb_user.user_metadata.get("name", sb_user.email or "User")
+    
+    # Find or create user in our database
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+    
+    if not user:
+        result = await db.execute(select(User))
+        existing = result.scalars().all()
+        user = User(
+            email=email, name=name,
+            hashed_password=hash_password(email + settings.SECRET_KEY),
+            role="admin" if len(existing) == 0 else "user",
+        )
+        db.add(user)
+        await db.flush()
+        await db.refresh(user)
+    
+    # Generate our JWT
+    token = create_access_token(user.id, user.role)
+    return TokenResponse(access_token=token, user={
+        "id": str(user.id), "email": user.email, "name": user.name, "role": user.role,
+        "subscription_status": user.subscription_status,
+        "subscription_plan": user.subscription_plan,
+        "kyc_verified": user.kyc_verified,
+    })
+
+
+@router.get("/supabase/auth-url")
+async def supabase_auth_url():
+    """Get the Supabase auth URL for Google OAuth."""
+    redirect_to = settings.FRONTEND_URL + "/auth/supabase-callback"
+    url = f"{settings.SUPABASE_URL}/auth/v1/authorize?provider=google&redirect_to={redirect_to}"
+    return {"url": url}

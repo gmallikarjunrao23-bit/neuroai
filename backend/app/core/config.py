@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     GITHUB_CLIENT_ID: str = ""
     GITHUB_CLIENT_SECRET: str = ""
 
+    # Supabase Settings
+    SUPABASE_URL: str = "https://pxpxzasavltypdrkpmdw.supabase.co"
+    SUPABASE_ANON_KEY: str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4cHh6YXNhdmx0eXBkcmtwbWR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4MDQxNzgsImV4cCI6MjEwMDM4MDE3OH0.HqC0jTkWEvUXRb_YPs0H_GQlrzGUnYHKrnz_m0iO_W0"
+    SUPABASE_SERVICE_KEY: str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4cHh6YXNhdmx0eXBkcmtwbWR3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NDgwNDE3OCwiZXhwIjoyMTAwMzgwMTc4fQ.-CeECX7xcJwEbf2vKGmFBsy6xVsfKKqFXVMbIPXo7jk"
+
     @property
     def cors_origins_list(self) -> list[str]:
         origins = list(self.CORS_ORIGINS)
