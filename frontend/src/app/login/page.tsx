@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { api } from "@/lib/api";
-import { supabase } from "@/lib/supabase";
 import { Brain, Eye, EyeOff, LogIn, Loader2 } from "lucide-react";
 
 const API_BASE = "https://backend-production-87c9.up.railway.app";
@@ -26,12 +25,12 @@ export default function LoginPage() {
         .catch(() => {});
     }
 
-    // Check for existing Supabase session (from OAuth redirect)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.access_token) {
-        handleSupabaseToken(session.access_token);
-      }
-    });
+    // Check URL params for Supabase session after OAuth redirect
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const accessToken = hashParams.get("access_token");
+    if (accessToken) {
+      handleSupabaseToken(accessToken);
+    }
   }, []);
 
   const handleSupabaseToken = async (supabaseToken: string) => {
@@ -55,22 +54,12 @@ export default function LoginPage() {
 
   const signInWithGoogle = async () => {
     setOauthLoading("google");
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: window.location.origin + "/login" },
-    });
-    if (error) setError(error.message);
-    setOauthLoading(null);
+    window.location.href = "https://pxpxzasavltypdrkpmdw.supabase.co/auth/v1/authorize?provider=google&redirect_to=" + window.location.origin + "/auth/supabase-callback";
   };
 
   const signInWithGitHub = async () => {
     setOauthLoading("github");
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "github",
-      options: { redirectTo: window.location.origin + "/login" },
-    });
-    if (error) setError(error.message);
-    setOauthLoading(null);
+    window.location.href = "https://pxpxzasavltypdrkpmdw.supabase.co/auth/v1/authorize?provider=github&redirect_to=" + window.location.origin + "/auth/supabase-callback";
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
