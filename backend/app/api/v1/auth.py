@@ -127,8 +127,8 @@ async def google_oauth_url():
     """Get Google OAuth URL for frontend redirect."""
     if not settings.GOOGLE_CLIENT_ID:
         return {"url": None, "error": "Google OAuth not configured"}
-    redirect_uri = f"{settings.FRONTEND_URL}/api/v1/auth/oauth/google/callback"
-    url = f"https://accounts.google.com/o/oauth2/v2/auth?client_id={settings.GOOGLE_CLIENT_ID}&redirect_uri={redirect_uri}&response_type=code&scope=email%20profile"
+    redirect_uri = settings.FRONTEND_URL + "/auth/callback?provider=google"
+    url = "https://accounts.google.com/o/oauth2/v2/auth?client_id=" + settings.GOOGLE_CLIENT_ID + "&redirect_uri=" + redirect_uri + "&response_type=code&scope=email%20profile"
     return {"url": url}
 
 
@@ -137,8 +137,8 @@ async def github_oauth_url():
     """Get GitHub OAuth URL for frontend redirect."""
     if not settings.GITHUB_CLIENT_ID:
         return {"url": None, "error": "GitHub OAuth not configured"}
-    redirect_uri = f"{settings.FRONTEND_URL}/api/v1/auth/oauth/github/callback"
-    url = f"https://github.com/login/oauth/authorize?client_id={settings.GITHUB_CLIENT_ID}&redirect_uri={redirect_uri}&scope=read:user%20user:email"
+    redirect_uri = settings.FRONTEND_URL + "/auth/callback?provider=github"
+    url = "https://github.com/login/oauth/authorize?client_id=" + settings.GITHUB_CLIENT_ID + "&redirect_uri=" + redirect_uri + "&scope=read:user%20user:email"
     return {"url": url}
 
 
